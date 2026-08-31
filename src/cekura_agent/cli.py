@@ -117,7 +117,7 @@ def diff(
     if patchset.is_noop:
         typer.echo("no changes (already integrated or nothing to do)")
     for edit in patchset.edits:
-        typer.echo(edit.diff)
+        typer.echo(redact(edit.diff))
 
 
 @app.command()
