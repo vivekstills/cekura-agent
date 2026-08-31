@@ -80,6 +80,50 @@ Expected output:
 cekura-agent 0.1.0
 ```
 
+## Interactive shell
+
+Run the CLI without a subcommand:
+
+```bash
+cekura-agent
+```
+
+It opens a persistent prompt. Offline mode is the default, so no credentials or network access are required:
+
+```text
+cekura-agent 0.1.0 interactive shell
+Offline mode is active. Type /online for live services, /help for commands, /exit to quit.
+Configure live services now? [y/N]:
+cekura-agent>
+```
+
+Use slash commands inside the prompt. The shell remembers the target repository, tracing mode, agent id, planner mode, and platform mode:
+
+```text
+/use tests/fixtures/livekit_basic
+/agent 42
+/inspect
+/plan
+/diff
+/integrate --apply
+/verify
+/prepare-platform --out /tmp/desired.json
+/rollback
+/exit
+```
+
+Use `/mode observe` to select observe tracing. `/offline` selects the fake planner and offline platform; `/online` lets you enable OpenRouter/Kimi K3 and real Cekura staging independently. Missing keys are requested with hidden input and are kept only in the shell process:
+
+```text
+/online
+Use live OpenRouter / Kimi K3? [Y/n]:
+OpenRouter API key:
+Use real Cekura staging? [Y/n]:
+Cekura API key:
+```
+
+`/status` reports whether each key is configured but never prints its value. `/help` lists slash commands, and `/help inspect` shows the normal command options. One-shot commands such as `cekura-agent inspect <repo>` continue to work unchanged.
+
 ## Safe environment-variable setup
 
 Copy `.env.example` to `.env` and fill in only what you need for the mode you plan to run. Never commit `.env`.
@@ -276,7 +320,7 @@ ruff check src tests
 python -m pytest
 ```
 
-Expected: `ruff` clean, `pytest` 104 passed.
+Expected: `ruff` clean, `pytest` 108 passed.
 
 ```bash
 # security scan helpers (run as a group; grep is silent when clean)

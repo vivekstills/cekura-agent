@@ -2,9 +2,9 @@
 
 ## Install & verify (fresh terminal)
 ```bash
-cd "cekura agent"
+cd cekura-agent
 python3.12 -m venv .venv && .venv/bin/pip install -e '.[dev]'
-.venv/bin/pytest            # expected: 99 passed
+.venv/bin/pytest            # expected: 108 passed
 .venv/bin/ruff check src tests
 ```
 
@@ -27,7 +27,7 @@ python3.12 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 ```
 
 ## What to check
-- [ ] `pytest` 99 passed; ruff clean
+- [ ] `pytest` 108 passed; ruff clean
 - [ ] `eval/matrix.md` — offline E2E passes + honest classification of the six CEK-8066 repos
 - [ ] Dashboard agent 22338 shows mock tools, dynamic variables, KB (GET-after verified)
 - [ ] Second `integrate --apply` is a zero-diff no-op; `rollback` restores exact hashes

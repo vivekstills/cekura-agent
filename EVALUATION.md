@@ -1,8 +1,9 @@
 # Evaluation
 
 ## Test suite
-`pytest` — 99 tests: schema strictness, safety kernel, scanner accuracy on fixtures,
-planner contract vs a local fake OpenRouter server, semantic-validator hostility tests,
+`pytest` — 108 tests: schema strictness, safety kernel, scanner accuracy on fixtures,
+interactive slash-command shell and hidden credential prompts, planner contract vs a local
+fake OpenRouter server, semantic-validator hostility tests,
 golden transformations, lifecycle mutation tests (hook-after-start, missing agent arg,
 shared pipecat tracer, missing tracing flags, register-before-task, aggregator removal,
 duplicate integration, hardcoded keys, wrong mode), compare-before-write / mid-apply
