@@ -282,6 +282,20 @@ def _scan_function(rel: str, fn: ast.FunctionDef | ast.AsyncFunctionDef, lines: 
                         "has_custom_kwargs": bool(kwargs),
                         "is_async_function": isinstance(fn, ast.AsyncFunctionDef),
                     })
+            # already-integrated single-step form: task = tracer.track/observe_and_create_task(...)
+            if callee in {"track_and_create_task", "observe_and_create_task"} and target_name:
+                pipeline_arg = _unparse(node.value.args[0]) if node.value.args else None
+                body_evidence["pipeline_task"] = add(
+                    EvidenceKind.PIPELINE_TASK, node, symbol=target_name,
+                    detail={
+                        "task_var": target_name, "pipeline_arg": pipeline_arg,
+                        "extra_kwargs": [], "function": fn.name,
+                        "function_params": params, "has_custom_kwargs": False,
+                        "is_async_function": isinstance(fn, ast.AsyncFunctionDef),
+                        "integrated": True, "style": callee,
+                    })
+                add(EvidenceKind.EXISTING_CEKURA, node, symbol=callee,
+                    detail={"style": "tracer_call", "function": fn.name})
             if callee == "LLMContextAggregatorPair" or callee == "create_context_aggregator":
                 aggregator_seen = True
                 if callee == "LLMContextAggregatorPair" and isinstance(target, ast.Tuple):

@@ -24,16 +24,17 @@ SKIP_DIRS = {
 _SECRET_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
     ("openrouter_key", re.compile(r"sk-or-v1-[a-f0-9]{16,}"), "[REDACTED]"),
     ("openai_style_key", re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"), "[REDACTED]"),
-    ("bearer_token", re.compile(r"(?i)(bearer\s+)[a-z0-9._~+/=-]{16,}"), r"\1[REDACTED]"),
+    ("bearer_token", re.compile(r"(?i)(bearer[ \t]+)[a-z0-9._~+/=-]{16,}"), r"\1[REDACTED]"),
     (
         "api_key_assignment",
         re.compile(
-            r"(?i)\b([A-Z0-9_]*(?:API_KEY|API_SECRET|ACCESS_TOKEN|SECRET_KEY|AUTH_TOKEN)\b\s*[:=]\s*['\"]?)"
+            r"(?i)\b([A-Z0-9_]*(?:API_KEY|API_SECRET|ACCESS_TOKEN|SECRET_KEY|AUTH_TOKEN)\b[ \t]*[:=][ \t]*['\"]?)"
             r"(?!os\.)(?!process\.)[A-Za-z0-9._~+/-]{12,}"
         ),
         r"\1[REDACTED]",
     ),
-    ("cekura_header", re.compile(r"(?i)(X-CEKURA-API-KEY\s*[:=]\s*)[A-Za-z0-9._-]{8,}"), r"\1[REDACTED]"),
+    ("cekura_header",
+     re.compile(r"(?i)(X-CEKURA-API-KEY[ \t]*[:=][ \t]*)[A-Za-z0-9._-]{8,}"), r"\1[REDACTED]"),
     ("private_key_block", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"), "[REDACTED-PRIVATE-KEY]"),
 ]
 

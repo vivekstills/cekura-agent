@@ -20,7 +20,6 @@ Pipecat:
 from __future__ import annotations
 
 import ast
-import py_compile
 from pathlib import Path
 
 from ..models import CheckResult, Mode
@@ -76,14 +75,15 @@ def _api_key_from_env(call: ast.Call) -> bool:
 
 
 def check_syntax(files: list[Path]) -> list[CheckResult]:
+    """In-memory compile — must never write bytecode into the customer repo."""
     results = []
     for path in files:
         if path.suffix != ".py":
             continue
         try:
-            py_compile.compile(str(path), doraise=True)
+            compile(path.read_text(encoding="utf-8"), str(path), "exec")
             results.append(CheckResult(name=f"syntax:{path.name}", passed=True))
-        except py_compile.PyCompileError as exc:
+        except (SyntaxError, ValueError, OSError, UnicodeDecodeError) as exc:
             results.append(CheckResult(name=f"syntax:{path.name}", passed=False, detail=str(exc)))
     return results
 

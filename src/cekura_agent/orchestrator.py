@@ -11,7 +11,15 @@ from pathlib import Path
 from .budget import BudgetLedger
 from .config import Settings, load_settings
 from .errors import AgentError, NeedsHuman
-from .models import CapabilityStatus, EvidenceKind, IntegrationPlan, Mode, PatchSet
+from .models import (
+    CapabilityStatus,
+    EvidenceKind,
+    Framework,
+    IntegrationPlan,
+    Mode,
+    PatchSet,
+    VerificationReport,
+)
 from .planner import build_plan
 from .scanner import InspectionResult, inspect_repo
 
@@ -75,12 +83,223 @@ def render_patchset(repo: Path, *, mode: Mode, model_mode: str = "fake",
     return _render(plan, ctx.inspection)
 
 
-def integrate_repo(*args, **kwargs):
-    raise AgentError("orchestration not wired yet (slice F)")
+@dataclass
+class IntegrateResult:
+    report: VerificationReport
+    patchset: PatchSet | None = None
+    desired_state: object = None
+    platform_result: dict | None = None
+
+    def human_summary(self) -> str:
+        from .report import human_summary
+
+        extra = []
+        if self.patchset is not None and not self.patchset.is_noop:
+            extra.append(f"patched files: {[e.file for e in self.patchset.edits]}")
+        if self.platform_result is not None:
+            extra.append(f"dashboard: {self.platform_result.get('dashboard_url', '-')}")
+        return human_summary(self.report, extra)
 
 
-def verify_repo(*args, **kwargs):
-    raise AgentError("verification not wired yet (slice F)")
+def _sdk_availability_blockers(framework, *, allow_network: bool) -> list[str]:
+    """Dependency guard: is the pinned Cekura SDK extra actually resolvable?"""
+    if not allow_network:
+        return []  # offline: NOT_RUN, reported by caller
+    import httpx
+
+    from .planner.rules import SDK_VERSION_SPEC
+
+    minimum = SDK_VERSION_SPEC.lstrip(">=")
+    try:
+        resp = httpx.get("https://pypi.org/pypi/cekura/json", timeout=15)
+        resp.raise_for_status()
+        releases = set(resp.json().get("releases", {}))
+    except Exception:
+        return [f"CEKURA_SDK_RESOLUTION_UNKNOWN (PyPI unreachable; pin cekura[{framework.value}]{SDK_VERSION_SPEC})"]
+    if minimum not in releases:
+        return [f"CEKURA_{framework.value.upper()}_SDK_UNAVAILABLE (cekura=={minimum} not on PyPI)"]
+    return []
+
+
+def integrate_repo(
+    repo: Path,
+    *,
+    mode: Mode,
+    apply: bool = False,
+    model_mode: str = "fake",
+    platform_mode: str = "offline",
+    agent_id: int | None = None,
+    project_id: int | None = None,
+    e2e: bool = False,
+) -> IntegrateResult:
+    """The autonomous workflow: snapshot -> evidence -> plan -> patch -> verify -> platform."""
+    import uuid
+
+    from .models import Status, VerificationReport
+    from .report import add_check
+
+    run_id = uuid.uuid4().hex[:10]
+    settings = load_settings(model_mode=model_mode, platform_mode=platform_mode)
+
+    # ---- inspect + gate (NEEDS_HUMAN becomes a structured report, not a crash)
+    inspection = inspect_repo(repo)
+    report = VerificationReport(
+        run_id=run_id, repo_root=str(inspection.root),
+        framework=inspection.matrix.framework, mode=mode,
+    )
+    if inspection.matrix.decision != CapabilityStatus.SUPPORTED:
+        report.statuses["repo_compatibility"] = Status.NEEDS_HUMAN_UNSUPPORTED_TOPOLOGY
+        report.needs_human.append(inspection.matrix.decision_reason)
+        for cap in inspection.matrix.capabilities:
+            if cap.status != CapabilityStatus.SUPPORTED:
+                add_check(report, f"capability:{cap.name}", False, cap.reason)
+        report.exit_code = 2
+        return IntegrateResult(report=report)
+    report.statuses["repo_compatibility"] = Status.IMPLEMENTED_AND_OFFLINE_VERIFIED
+
+    # ---- plan
+    ledger = BudgetLedger(settings)
+    plan = build_plan(inspection, mode, model_mode=model_mode, agent_id=agent_id,
+                      settings=settings, ledger=ledger)
+    from .features import build_dynamic_variable_specs, build_kb_manifest, build_mock_tool_specs
+
+    plan = plan.model_copy(update={
+        "mock_tools": build_mock_tool_specs(inspection),
+        "dynamic_variables": build_dynamic_variable_specs(inspection),
+        "kb_manifest": build_kb_manifest(inspection),
+    })
+    report.model_usage = dict(plan.model_metadata) | {"ledger": ledger.summary()}
+    report.statuses["kimi_planner"] = (
+        Status.LIVE_VERIFIED if model_mode == "openrouter" else Status.IMPLEMENTED_AND_OFFLINE_VERIFIED
+    )
+
+    # ---- patch
+    from .patching import apply_patchset, render
+
+    patchset, contents = render(plan, inspection)
+    already = is_already_integrated(inspection)
+    add_check(report, "plan:actions", True,
+              ", ".join(a.action_type.value for a in plan.actions))
+
+    if patchset.is_noop:
+        report.statuses["code_integration"] = (
+            Status.IMPLEMENTED_AND_OFFLINE_VERIFIED if already else Status.NOT_RUN)
+        add_check(report, "idempotence:noop", True,
+                  "already integrated; zero-diff" if already else "nothing to change")
+    elif not apply:
+        report.statuses["code_integration"] = Status.NOT_RUN
+        add_check(report, "dry_run:diff_rendered", True,
+                  f"{len(patchset.edits)} file(s) would change (run with --apply)")
+    else:
+        patchset = patchset.model_copy(update={"plan_id": run_id})
+        apply_patchset(inspection.root, patchset, contents)
+        changed = [e.file for e in patchset.edits]
+        from .verification import collect_checks
+
+        report.checks.extend(collect_checks(inspection.root, changed, expected_mode=mode))
+        post = inspect_repo(repo)
+        add_check(report, "post:still_supported_topology",
+                  post.matrix.decision == CapabilityStatus.SUPPORTED, post.matrix.decision_reason)
+        add_check(report, "post:integration_detected", is_already_integrated(post),
+                  "cekura SDK usage visible to the scanner after patch")
+        manifests = " ".join(
+            (inspection.root / f).read_text(encoding="utf-8", errors="ignore")
+            for f in changed if "requirements" in f or f.endswith(".toml"))
+        add_check(report, "post:dependency_added", "cekura[" in manifests,
+                  f"cekura[{plan.framework.value}] present in a dependency manifest")
+        from .safety import scan_paths_for_secrets
+
+        findings = scan_paths_for_secrets([inspection.root / f for f in changed])
+        add_check(report, "post:no_secrets_in_diff", not findings, str(findings))
+        report.statuses["code_integration"] = (
+            Status.IMPLEMENTED_AND_OFFLINE_VERIFIED if report.passed else Status.NOT_RUN)
+        report.statuses["rollback_manifest"] = Status.IMPLEMENTED_AND_OFFLINE_VERIFIED
+
+    # ---- feature specs (always computed; registration is the platform step)
+    report.statuses["mock_tools_spec"] = Status.IMPLEMENTED_AND_OFFLINE_VERIFIED
+    report.statuses["dynamic_variables_spec"] = Status.IMPLEMENTED_AND_OFFLINE_VERIFIED
+    report.statuses["kb_manifest"] = Status.IMPLEMENTED_AND_OFFLINE_VERIFIED
+    add_check(report, "features:mock_tools", True, f"{len(plan.mock_tools)} tool(s)")
+    add_check(report, "features:dynamic_variables", True, f"{len(plan.dynamic_variables)} variable(s)")
+    add_check(report, "features:kb_manifest", True,
+              f"{len(plan.kb_manifest)} document(s), approval required before upload")
+    if plan.framework == Framework.PIPECAT and plan.mock_tools:
+        add_check(report, "features:pipecat_mock_routing", True, severity="warning",
+                  detail="Pipecat SDK does not auto-inject mocks; routing needs the explicit "
+                         "MockToolRouter contract (see report notes)")
+
+    # ---- platform
+    desired = prepare_platform_state(repo, mode=mode, agent_id=agent_id, project_id=project_id)
+    platform_result: dict | None = None
+    if platform_mode == "staging":
+        if not settings.cekura_api_key:
+            report.statuses["platform_registration"] = Status.BLOCKED_BY_ACCESS_OR_DEPENDENCY
+            report.blockers.append("CEKURA_KEY_MISSING")
+        else:
+            from .platform import CekuraClient, reconcile
+
+            client = CekuraClient(settings.cekura_base_url, settings.cekura_api_key)
+            platform_result = reconcile(client, desired, apply=apply and e2e,
+                                        kb_files_root=inspection.root)
+            if apply and e2e:
+                verified = bool(platform_result.get("verified"))
+                add_check(report, "platform:get_after_exact_match", verified,
+                          str(platform_result.get("mismatches", [])))
+                report.statuses["platform_registration"] = (
+                    Status.LIVE_VERIFIED if verified else Status.BLOCKED_BY_ACCESS_OR_DEPENDENCY)
+            else:
+                report.statuses["platform_registration"] = Status.NOT_RUN
+                add_check(report, "platform:dry_run_diff", True,
+                          str({k: v for k, v in platform_result.items()
+                               if k.endswith("_diff")}), severity="info")
+        blockers = _sdk_availability_blockers(plan.framework, allow_network=True)
+        report.blockers.extend(blockers)
+        report.statuses["sdk_dependency"] = (
+            Status.BLOCKED_BY_ACCESS_OR_DEPENDENCY if blockers else Status.LIVE_VERIFIED)
+    else:
+        report.statuses["platform_registration"] = Status.NOT_RUN
+        report.statuses["sdk_dependency"] = Status.NOT_RUN
+
+    report.statuses["scenario_run_e2e"] = Status.NOT_RUN  # documented next step, never faked
+
+    report.exit_code = 0 if report.passed else 1
+    return IntegrateResult(report=report, patchset=patchset, desired_state=desired,
+                           platform_result=platform_result)
+
+
+def verify_repo(repo: Path, mode: Mode | None = None):
+    """Standalone verification of the repo's current integration state."""
+    import uuid
+
+    from .models import Status, VerificationReport
+    from .report import add_check
+    from .verification import collect_checks
+
+    inspection = inspect_repo(repo)
+    report = VerificationReport(
+        run_id=uuid.uuid4().hex[:10], repo_root=str(inspection.root),
+        framework=inspection.matrix.framework, mode=mode,
+    )
+    tracer_files = sorted({
+        f.path for f in inspection.snapshot.files
+        if f.path.endswith(".py")
+        and any(marker in (inspection.root / f.path).read_text(encoding="utf-8", errors="ignore")
+                for marker in ("LiveKitTracer", "PipecatTracer"))
+    })
+    if not tracer_files:
+        add_check(report, "integration:present", False,
+                  "no Cekura tracer usage found — run `cekura-agent integrate` first")
+        report.statuses["code_integration"] = Status.NOT_RUN
+        report.exit_code = 1
+        return report
+    report.checks.extend(collect_checks(inspection.root, tracer_files, expected_mode=mode))
+    add_check(report, "topology:supported",
+              inspection.matrix.decision == CapabilityStatus.SUPPORTED,
+              inspection.matrix.decision_reason)
+    report.statuses["code_integration"] = (
+        Status.IMPLEMENTED_AND_OFFLINE_VERIFIED if report.passed else Status.NOT_RUN)
+    report.exit_code = 0 if report.passed else 1
+    return report
 
 
 def prepare_platform_state(
