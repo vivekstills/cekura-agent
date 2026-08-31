@@ -10,12 +10,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 import typer
 
 from . import __version__
-from .config import load_settings
 from .errors import AgentError, NeedsHuman
 from .models import Mode
 from .safety import redact
@@ -33,7 +31,7 @@ app = typer.Typer(
 MODE_HELP = "Integration mode: 'test' (Cekura simulations, track_*) or 'observe' (production monitoring, observe_*). Required; there is no 'both' default."
 
 
-def _echo_json(payload: object, out: Optional[Path]) -> None:
+def _echo_json(payload: object, out: Path | None) -> None:
     text = json.dumps(payload, indent=2, default=str)
     text = redact(text)
     if out:
@@ -72,7 +70,7 @@ def _root(
 @app.command()
 def inspect(
     repo: Path = typer.Argument(..., exists=True, file_okay=False, help="Path to the customer repo."),
-    out: Optional[Path] = typer.Option(None, "--json", help="Write full inspection JSON here."),
+    out: Path | None = typer.Option(None, "--json", help="Write full inspection JSON here."),
 ) -> None:
     """Read-only repository analysis: framework, entrypoints, tools, variables, KB, existing Cekura."""
     from .scanner import inspect_repo
@@ -89,8 +87,8 @@ def plan(
     repo: Path = typer.Argument(..., exists=True, file_okay=False),
     mode: Mode = typer.Option(..., "--mode", help=MODE_HELP),
     model_mode: str = typer.Option("fake", "--model-mode", help="fake | openrouter"),
-    agent_id: Optional[int] = typer.Option(None, "--agent-id", help="Existing Cekura agent id."),
-    out: Optional[Path] = typer.Option(None, "--out", help="Write IntegrationPlan JSON here."),
+    agent_id: int | None = typer.Option(None, "--agent-id", help="Existing Cekura agent id."),
+    out: Path | None = typer.Option(None, "--out", help="Write IntegrationPlan JSON here."),
 ) -> None:
     """Produce and validate a constrained IntegrationPlan (no writes)."""
     from .orchestrator import make_plan
@@ -107,7 +105,7 @@ def diff(
     repo: Path = typer.Argument(..., exists=True, file_okay=False),
     mode: Mode = typer.Option(..., "--mode", help=MODE_HELP),
     model_mode: str = typer.Option("fake", "--model-mode"),
-    agent_id: Optional[int] = typer.Option(None, "--agent-id"),
+    agent_id: int | None = typer.Option(None, "--agent-id"),
 ) -> None:
     """Render the exact patch the integration would apply, without writing anything."""
     from .orchestrator import render_patchset
@@ -129,9 +127,9 @@ def integrate(
     apply: bool = typer.Option(False, "--apply", help="Actually write changes. Default is dry-run."),
     model_mode: str = typer.Option("fake", "--model-mode", help="fake | openrouter"),
     platform_mode: str = typer.Option("offline", "--platform-mode", help="offline | staging"),
-    agent_id: Optional[int] = typer.Option(None, "--agent-id"),
-    project_id: Optional[int] = typer.Option(None, "--project-id"),
-    report: Optional[Path] = typer.Option(None, "--report", help="Write VerificationReport JSON here."),
+    agent_id: int | None = typer.Option(None, "--agent-id"),
+    project_id: int | None = typer.Option(None, "--project-id"),
+    report: Path | None = typer.Option(None, "--report", help="Write VerificationReport JSON here."),
     e2e: bool = typer.Option(False, "--e2e", help="Run platform E2E checks (staging only)."),
 ) -> None:
     """Full autonomous workflow: snapshot -> evidence -> plan -> patch -> verify -> platform prep."""
@@ -158,8 +156,8 @@ def integrate(
 @app.command()
 def verify(
     repo: Path = typer.Argument(..., exists=True, file_okay=False),
-    mode: Optional[Mode] = typer.Option(None, "--mode", help="Expected mode to verify against."),
-    report: Optional[Path] = typer.Option(None, "--report"),
+    mode: Mode | None = typer.Option(None, "--mode", help="Expected mode to verify against."),
+    report: Path | None = typer.Option(None, "--report"),
 ) -> None:
     """Verify current repo state: lifecycle invariants, syntax, integration presence."""
     from .orchestrator import verify_repo
@@ -176,9 +174,9 @@ def verify(
 def prepare_platform(
     repo: Path = typer.Argument(..., exists=True, file_okay=False),
     mode: Mode = typer.Option(..., "--mode", help=MODE_HELP),
-    agent_id: Optional[int] = typer.Option(None, "--agent-id"),
-    project_id: Optional[int] = typer.Option(None, "--project-id"),
-    out: Optional[Path] = typer.Option(None, "--out"),
+    agent_id: int | None = typer.Option(None, "--agent-id"),
+    project_id: int | None = typer.Option(None, "--project-id"),
+    out: Path | None = typer.Option(None, "--out"),
 ) -> None:
     """Emit the CekuraDesiredState (agent, mock tools, dynamic variables, KB) + dashboard URL."""
     from .orchestrator import prepare_platform_state
@@ -196,7 +194,7 @@ def apply_platform(
     platform_mode: str = typer.Option("offline", "--platform-mode", help="offline | staging"),
     apply: bool = typer.Option(False, "--apply", help="Actually call the API. Default is dry-run."),
     approve_deletions: bool = typer.Option(False, "--approve-deletions"),
-    base_url: Optional[str] = typer.Option(None, "--base-url", help="Override API base (tests only)."),
+    base_url: str | None = typer.Option(None, "--base-url", help="Override API base (tests only)."),
 ) -> None:
     """Reconcile Cekura platform state: GET -> exact diff -> apply once -> GET-after compare."""
     from .orchestrator import apply_platform_state
@@ -217,7 +215,7 @@ def apply_platform(
 @app.command()
 def rollback(
     repo: Path = typer.Argument(..., exists=True, file_okay=False),
-    run_id: Optional[str] = typer.Option(None, "--run-id", help="Defaults to the latest run."),
+    run_id: str | None = typer.Option(None, "--run-id", help="Defaults to the latest run."),
     force: bool = typer.Option(False, "--force", help="Restore even if files changed since the patch."),
 ) -> None:
     """Restore files exactly as they were before an integrate --apply run."""

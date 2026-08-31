@@ -409,7 +409,7 @@ def _scan_dependencies(root: Path, snapshot: RepoSnapshot, counter: _Counter) ->
             try:
                 for i, line in enumerate((root / record.path).read_text().splitlines(), start=1):
                     stripped = line.strip()
-                    pkg = re.split(r"[<>=~!\[; ]", stripped, 1)[0].lower()
+                    pkg = re.split(r"[<>=~!\[; ]", stripped, maxsplit=1)[0].lower()
                     if pkg in interesting:
                         out.append(Evidence(
                             id=counter.next(), kind=EvidenceKind.DEPENDENCY, file=record.path,
@@ -424,7 +424,7 @@ def _scan_dependencies(root: Path, snapshot: RepoSnapshot, counter: _Counter) ->
                 data = tomllib.loads((root / record.path).read_text())
                 deps = data.get("project", {}).get("dependencies", []) or []
                 for dep in deps:
-                    pkg = re.split(r"[<>=~!\[; ]", dep.strip(), 1)[0].lower()
+                    pkg = re.split(r"[<>=~!\[; ]", dep.strip(), maxsplit=1)[0].lower()
                     if pkg in interesting:
                         out.append(Evidence(
                             id=counter.next(), kind=EvidenceKind.DEPENDENCY, file=record.path,
