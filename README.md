@@ -55,16 +55,18 @@ Kimi K3 is responsible for choosing from the constrained action set and for synt
 
 ## Installation
 
-From a fresh clone, enter the directory you cloned into first. For example:
+Clone the repository and install it in an isolated Python 3.12 environment:
 
 ```bash
+git clone https://github.com/vivekstills/cekura-agent.git
 cd cekura-agent
+python3.12 --version
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e '.[dev]'
 ```
 
-If the directory name contains spaces, quote it: `cd "cekura agent"`.
+The version check must print Python 3.12.x. If `python3.12` is not found, install Python 3.12 before continuing. If you clone into a different directory name, use that name in the `cd` command and quote it when it contains spaces.
 
 Check it:
 
