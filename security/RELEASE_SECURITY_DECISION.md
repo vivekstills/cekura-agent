@@ -2,7 +2,7 @@ Release Security Decision: cekura-agent
 =======================================
 
 Repository: /Users/vivek/Desktop/cekura agent
-Commit: `12f5e86` (main)
+Commit: `494ae4a` (main)
 Date: 2026-08-31
 
 Summary

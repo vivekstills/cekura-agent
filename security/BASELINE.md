@@ -9,7 +9,7 @@ Standards: OWASP ASVS 5.0, OWASP LLM Top 10 2025, NIST SP 800-218 SSDF
 
 Repository freeze
 -----------------
-- Final release candidate SHA: `12f5e86`
+- Final release candidate SHA: `494ae4a`
 - Branch: main
 - Dirty state: clean
 - Python: 3.12.13
