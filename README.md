@@ -8,8 +8,7 @@ It runs from repository inspection through verification and rollback: snapshot t
 
 ```text
 inspect → plan → diff → integrate --apply → verify → prepare-platform → apply-platform
-                           ↑_________________________________|
-                                                 rollback
+                                                 
 ```
 
 1. **Inspect** — read-only AST analysis: framework, entrypoints, tools, prompt placeholders, runtime inputs, KB sources, existing Cekura SDK usage.
