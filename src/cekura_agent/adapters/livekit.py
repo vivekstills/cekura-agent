@@ -21,24 +21,25 @@ from .base import (
     import_insertion_line,
     indent_of,
     parse_module,
+    statement_of,
 )
 
 TRACER_VAR = "cekura_tracer"
 
 
 def _find_session_start(fn: ast.AST, session_var: str) -> ast.stmt:
+    """The statement executing `<session_var>.start(...)` — awaited, wrapped in
+    asyncio.create_task(...), or plain. The tracer insert goes before this statement."""
     for node in ast.walk(fn):
-        if isinstance(node, ast.Await) and isinstance(node.value, ast.Call):
-            func = node.value.func
-            if isinstance(func, ast.Attribute) and func.attr == "start":
-                try:
-                    receiver = ast.unparse(func.value)
-                except Exception:  # pragma: no cover
-                    receiver = ""
-                if receiver == session_var:
-                    stmt = node
-                    return stmt
-    raise AdapterError(f"await {session_var}.start(...) not found — file drifted since inspection")
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                and node.func.attr == "start":
+            try:
+                receiver = ast.unparse(node.func.value)
+            except Exception:  # pragma: no cover
+                receiver = ""
+            if receiver == session_var:
+                return statement_of(node, fn)
+    raise AdapterError(f"{session_var}.start(...) not found — file drifted since inspection")
 
 
 def integrate_livekit(

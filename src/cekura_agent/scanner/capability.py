@@ -105,13 +105,21 @@ def build_matrix(fingerprint: str, emap: EvidenceMap) -> CapabilityMatrix:
     # pipecat needs a PipelineTask to wrap
     if framework == Framework.PIPECAT:
         tasks = emap.of_kind(EvidenceKind.PIPELINE_TASK)
+        worker_style = [t for t in tasks if t.detail.get("style") == "pipeline_worker"]
+        task_style = [t for t in tasks if t.detail.get("style") != "pipeline_worker"]
         if not tasks:
             cap("pipeline_task", CapabilityStatus.NEEDS_HUMAN,
                 "NO_PIPELINE_TASK: pipecat imported but no PipelineTask construction found")
             demote(CapabilityStatus.NEEDS_HUMAN, "NO_PIPELINE_TASK")
+        elif worker_style and not task_style:
+            cap("pipeline_task", CapabilityStatus.NEEDS_HUMAN,
+                "PIPECAT_WORKER_API: repo uses the newer PipelineWorker/WorkerRunner API; the "
+                "documented Cekura SDK integration targets PipelineTask — verify SDK support "
+                "before integrating", worker_style)
+            demote(CapabilityStatus.NEEDS_HUMAN, "PIPECAT_WORKER_API")
         else:
-            style = "multi_step" if tasks[0].detail.get("has_custom_kwargs") else "single_step"
-            cap("pipeline_task", CapabilityStatus.SUPPORTED, f"{style} integration applicable", tasks)
+            style = "multi_step" if task_style[0].detail.get("has_custom_kwargs") else "single_step"
+            cap("pipeline_task", CapabilityStatus.SUPPORTED, f"{style} integration applicable", task_style)
 
     # tools -> mock tools
     tools = emap.of_kind(EvidenceKind.TOOL_DEF)

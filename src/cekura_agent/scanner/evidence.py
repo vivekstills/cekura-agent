@@ -65,6 +65,17 @@ def _is_test_path(rel_path: str) -> bool:
     return any(lowered.startswith(h) or f"/{h}" in lowered for h in TEST_PATH_HINTS)
 
 
+def _containing_stmt(fn: ast.AST, node: ast.AST) -> ast.stmt:
+    """Smallest non-function statement in `fn` containing `node` (by position)."""
+    target: ast.stmt | None = None
+    for stmt in ast.walk(fn):
+        if isinstance(stmt, ast.stmt) and not isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if stmt.lineno <= node.lineno <= (stmt.end_lineno or stmt.lineno):
+                if target is None or stmt.lineno >= target.lineno:
+                    target = stmt
+    return target if target is not None else node  # type: ignore[return-value]
+
+
 def _snippet(lines: list[str], lineno: int, end: int | None = None) -> str:
     end = end or lineno
     return "\n".join(lines[max(0, lineno - 1): min(len(lines), end)])[:400]
@@ -282,6 +293,19 @@ def _scan_function(rel: str, fn: ast.FunctionDef | ast.AsyncFunctionDef, lines: 
                         "has_custom_kwargs": bool(kwargs),
                         "is_async_function": isinstance(fn, ast.AsyncFunctionDef),
                     })
+            # newer pipecat runner API: worker = PipelineWorker(pipeline, ...) — the documented
+            # Cekura SDK contract targets PipelineTask; flag distinctly, never guess a transform
+            if callee == "PipelineWorker" and target_name:
+                body_evidence["pipeline_worker"] = add(
+                    EvidenceKind.PIPELINE_TASK, node, symbol=target_name,
+                    detail={
+                        "task_var": target_name,
+                        "pipeline_arg": _unparse(node.value.args[0]) if node.value.args else None,
+                        "extra_kwargs": [kw.arg for kw in node.value.keywords if kw.arg],
+                        "function": fn.name, "function_params": params,
+                        "has_custom_kwargs": True, "style": "pipeline_worker",
+                        "is_async_function": isinstance(fn, ast.AsyncFunctionDef),
+                    })
             # already-integrated single-step form: task = tracer.track/observe_and_create_task(...)
             if callee in {"track_and_create_task", "observe_and_create_task"} and target_name:
                 pipeline_arg = _unparse(node.value.args[0]) if node.value.args else None
@@ -323,48 +347,61 @@ def _scan_function(rel: str, fn: ast.FunctionDef | ast.AsyncFunctionDef, lines: 
                         detail={"source": "job_metadata", "var": target_name, "expr": arg_repr,
                                 "function": fn.name})
 
-        # await session.start(...)
-        if isinstance(node, ast.Await) and isinstance(node.value, ast.Call):
-            call = node.value
-            if isinstance(call.func, ast.Attribute) and call.func.attr == "start":
-                receiver = _unparse(call.func.value)
-                agent_arg = None
-                for kw in call.keywords:
-                    if kw.arg == "agent":
-                        agent_arg = _unparse(kw.value)
-                kwargs = [kw.arg for kw in call.keywords if kw.arg]
-                body_evidence["session_start"] = add(
-                    EvidenceKind.SESSION_START, node, symbol=receiver,
-                    detail={"session_var": receiver, "agent_arg": agent_arg,
-                            "kwargs": kwargs, "function": fn.name, "ctx_param": ctx_param})
-            attr_chain = _dotted(call.func)
+    # ---- pass 2: call sites (session vars & metadata vars are now fully known)
+    session_vars = {
+        n.targets[0].id
+        for n in ast.walk(fn)
+        if isinstance(n, ast.Assign) and isinstance(n.value, ast.Call)
+        and _name_of(n.value.func) == "AgentSession" and isinstance(n.targets[0], ast.Name)
+    }
+    structural_vars = {"session_data", "session_args", "body"}
+
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Call):
+            # session.start(...) — awaited, asyncio.create_task-wrapped, or plain
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "start":
+                receiver = _unparse(node.func.value)
+                if receiver in session_vars or {"room", "agent"} & {kw.arg for kw in node.keywords}:
+                    agent_arg = None
+                    for kw in node.keywords:
+                        if kw.arg == "agent":
+                            agent_arg = _unparse(kw.value)
+                    stmt = _containing_stmt(fn, node)
+                    body_evidence["session_start"] = add(
+                        EvidenceKind.SESSION_START, stmt, symbol=receiver,
+                        detail={"session_var": receiver, "agent_arg": agent_arg,
+                                "kwargs": [kw.arg for kw in node.keywords if kw.arg],
+                                "function": fn.name, "ctx_param": ctx_param,
+                                "wrapped": _unparse(stmt)[:120]})
+
+            # existing Cekura tracer calls (awaited or not)
+            attr_chain = _dotted(node.func)
             if attr_chain.endswith(("track_session", "observe_session",
-                                    "track_and_create_task", "observe_and_create_task",
                                     "track_pipeline", "observe_pipeline")):
                 add(EvidenceKind.EXISTING_CEKURA, node, symbol=attr_chain,
                     detail={"style": "tracer_call", "function": fn.name})
 
-        # llm.register_function("name", handler)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "register_function":
-            if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+            # llm.register_function("name", handler)
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "register_function" \
+                    and node.args and isinstance(node.args[0], ast.Constant) \
+                    and isinstance(node.args[0].value, str):
                 add(EvidenceKind.TOOL_DEF, node, symbol=node.args[0].value, detail={
                     "name": node.args[0].value, "style": "pipecat_register_function",
                     "handler": _unparse(node.args[1]) if len(node.args) > 1 else None,
                 })
 
-        # runtime metadata reads: X.get("k") / X["k"] on json.loads(ctx.job.metadata) vars or session_data
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "get":
-            base = node.func.value
-            base_name = base.id if isinstance(base, ast.Name) else None
-            if base_name and (base_name in metadata_vars or base_name in {"session_data", "session_args", "body"}):
-                if node.args and isinstance(node.args[0], ast.Constant):
+            # runtime metadata reads: X.get("k")
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "get":
+                base = node.func.value
+                base_name = base.id if isinstance(base, ast.Name) else None
+                if base_name and (base_name in metadata_vars or base_name in structural_vars) \
+                        and node.args and isinstance(node.args[0], ast.Constant):
                     add(EvidenceKind.RUNTIME_INPUT, node, symbol=str(node.args[0].value), detail={
                         "source": "job_metadata" if base_name in metadata_vars else "session_data",
                         "key": node.args[0].value, "var": base_name, "function": fn.name,
                     })
 
-        # open("docs/x.md") / Path("kb/y.md").read_text()
-        if isinstance(node, ast.Call):
+            # open("docs/x.md") / Path("kb/y.md").read_text()
             fname = _name_of(node.func)
             if fname in {"open", "Path"} and node.args and isinstance(node.args[0], ast.Constant) \
                     and isinstance(node.args[0].value, str):
@@ -372,6 +409,16 @@ def _scan_function(rel: str, fn: ast.FunctionDef | ast.AsyncFunctionDef, lines: 
                 if Path(target_path).suffix.lower() in KB_SUFFIXES:
                     add(EvidenceKind.KB_SOURCE, node, symbol=target_path,
                         detail={"style": "code_file_read", "path": target_path, "function": fn.name})
+
+        # runtime metadata reads: X["k"] subscripts
+        if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name) \
+                and isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str):
+            base_name = node.value.id
+            if base_name in metadata_vars or base_name in structural_vars:
+                add(EvidenceKind.RUNTIME_INPUT, node, symbol=str(node.slice.value), detail={
+                    "source": "job_metadata" if base_name in metadata_vars else "session_data",
+                    "key": node.slice.value, "var": base_name, "function": fn.name,
+                })
 
     # entrypoint evidence for LiveKit-shaped functions
     if is_livekit_entry:
@@ -381,8 +428,9 @@ def _scan_function(rel: str, fn: ast.FunctionDef | ast.AsyncFunctionDef, lines: 
             "has_session_start": "session_start" in body_evidence,
             "session_var": body_evidence.get("session_start").detail.get("session_var") if body_evidence.get("session_start") else None,
         })
-    if "pipeline_task" in body_evidence:
-        task_detail = body_evidence["pipeline_task"].detail
+    task_key = next((k for k in ("pipeline_task", "pipeline_worker") if k in body_evidence), None)
+    if task_key is not None:
+        task_detail = body_evidence[task_key].detail
         pipeline_elements = pipeline_vars.get(task_detail.get("pipeline_arg") or "", [])
 
         def _pair_in_pipeline() -> bool:

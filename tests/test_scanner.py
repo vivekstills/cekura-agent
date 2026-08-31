@@ -106,3 +106,12 @@ def test_existing_integration_detected():
     assert result.summary()["already_integrated"] is True
     cap = result.matrix.get("already_integrated")
     assert cap is not None and "ALREADY_INTEGRATED" in cap.reason
+
+
+def test_pipecat_worker_api_flagged_distinctly():
+    result = inspect_repo(FIXTURES / "pipecat_worker")
+    assert result.matrix.framework == Framework.PIPECAT
+    assert result.matrix.decision == CapabilityStatus.NEEDS_HUMAN
+    assert result.matrix.decision_reason == "PIPECAT_WORKER_API"
+    [task] = result.evidence_map.of_kind(EvidenceKind.PIPELINE_TASK)
+    assert task.detail["style"] == "pipeline_worker"
