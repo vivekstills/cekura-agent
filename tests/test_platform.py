@@ -65,7 +65,7 @@ def test_kb_uploads_only_when_approved(fake_cekura):
     result = reconcile(_client(fake_cekura), desired, apply=True,
                        kb_files_root=FIXTURES / "livekit_basic")
     agent = fake_cekura.agents[result["agent"]["id"]]
-    assert agent["knowledge_base_files"] == ["faq.md"]
+    assert [f["name"] for f in agent["knowledge_base_files"]] == ["faq.md"]
     assert result["verified"] is True
 
 
@@ -195,3 +195,16 @@ def test_apply_platform_cli_guards(tmp_path, monkeypatch, fake_cekura):
                                  "--base-url", fake_cekura.url])
     assert result.exit_code == 0
     assert '"applied": false' in result.output
+
+
+def test_project_autoresolution_single_and_ambiguous(fake_cekura):
+    desired = _desired(project_id=None)
+    result = reconcile(_client(fake_cekura), desired, apply=True)
+    assert result["agent"]["action"] == "created"
+    assert any("auto-resolved" in w for w in result["warnings"])
+    assert fake_cekura.agents[result["agent"]["id"]]["project"] == 1
+
+    fake_cekura.projects.append({"id": 2, "name": "Second"})
+    with pytest.raises(NeedsHuman) as exc:
+        reconcile(_client(fake_cekura), _desired(project_id=None), apply=True)
+    assert exc.value.reason_code == "PROJECT_REQUIRED"

@@ -1,6 +1,7 @@
 """Slice D gates: exact tool schemas, synthetic-only mocks, routing boundary,
 source->sink variables, approval-gated KB, monitoring duplication awareness."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -50,18 +51,37 @@ def test_pipecat_schema_and_register_function_fold_into_one_spec():
     assert len(spec.evidence_ids) >= 2  # FunctionSchema + register_function
 
 
-def test_mock_variants_are_clearly_synthetic():
+def test_mock_variants_are_clearly_synthetic_and_inputs_distinct():
     inspection = inspect_repo(FIXTURES / "livekit_basic")
     for spec in build_mock_tool_specs(inspection):
         assert {v.variant for v in spec.mock_data} == {"success", "empty", "error"}
+        # platform contract: each input maps to exactly one output -> inputs must differ
+        inputs = [json.dumps(v.input, sort_keys=True) for v in spec.mock_data]
+        assert len(set(inputs)) == len(inputs), f"duplicate mock inputs in {spec.name}"
         for variant in spec.mock_data:
             assert variant.output.get("mock") is True
             for key, value in variant.input.items():
                 if isinstance(value, str):
-                    assert value.startswith(("MOCK", "+1555", "2026-", "10:", "Mock", "mock", "00000")), \
+                    assert value.startswith(("MOCK", "+1555", "2026-", "1", "Mock", "mock", "0")), \
                         f"non-synthetic value {value!r} for {key}"
         error = next(v for v in spec.mock_data if v.variant == "error")
         assert "error" in error.output
+
+
+def test_zero_param_tool_gets_single_variant(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "agent.py").write_text(
+        "from livekit.agents import Agent, function_tool\n\n\n"
+        "class A(Agent):\n"
+        "    @function_tool()\n"
+        "    async def end_call(self, ctx):\n"
+        "        \"\"\"Hang up the call.\"\"\"\n"
+        "        return 'bye'\n"
+    )
+    [spec] = build_mock_tool_specs(inspect_repo(repo))
+    assert spec.name == "end_call"
+    assert len(spec.mock_data) == 1 and spec.mock_data[0].input == {}
 
 
 def test_local_fake_router_requires_exact_name():

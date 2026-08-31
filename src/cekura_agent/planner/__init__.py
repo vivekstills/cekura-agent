@@ -41,6 +41,18 @@ def build_plan(
     else:
         raise AgentError(f"unknown --model-mode {model_mode!r} (expected fake|openrouter)")
 
+    # Host-known values are normalized, never trusted to model echo: the model may omit
+    # them, but if it *contradicts* them the validator still rejects.
+    from ..models import ActionType
+
+    for action in actions:
+        if action.action_type in (ActionType.PIPECAT_SINGLE_STEP, ActionType.PIPECAT_MULTI_STEP):
+            action.params.setdefault("mode", mode.value)
+        if action.action_type in (ActionType.PIPECAT_SINGLE_STEP, ActionType.PIPECAT_MULTI_STEP,
+                                  ActionType.INSERT_TRACER_INIT):
+            if agent_id is not None and action.params.get("agent_id") in (None, 0):
+                action.params["agent_id"] = agent_id
+
     plan = IntegrationPlan(
         plan_id=uuid.uuid4().hex[:12],
         snapshot_fingerprint=inspection.snapshot.fingerprint,

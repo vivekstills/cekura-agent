@@ -50,6 +50,21 @@ def _normalize_var(raw: dict[str, Any]) -> dict[str, Any]:
     return {"name": raw.get("name"), "description": raw.get("description", "")}
 
 
+def _kb_names(items: Any) -> set[str]:
+    """The platform returns knowledge_base_files as objects; normalize to file names."""
+    names: set[str] = set()
+    for item in items or []:
+        if isinstance(item, str):
+            names.add(Path(item).name)
+        elif isinstance(item, dict):
+            for key in ("name", "file_name", "filename", "file", "title"):
+                value = item.get(key)
+                if isinstance(value, str) and value:
+                    names.add(Path(value).name)
+                    break
+    return names
+
+
 def diff_named(current: list[dict], desired: list[dict]) -> dict[str, list[str]]:
     cur = {c["name"]: c for c in current}
     des = {d["name"]: d for d in desired}
@@ -97,13 +112,47 @@ def reconcile(client: CekuraClient, desired: CekuraDesiredState, *, apply: bool,
     else:
         if desired.agent is None:
             raise NeedsHuman("NO_AGENT_TARGET", "desired state has neither agent_id nor an agent spec")
+        project = desired.agent.project
+        if project is None:
+            projects = client.list_projects()
+            if len(projects) == 1:  # project-scoped API keys see exactly their own project
+                project = int(projects[0]["id"])
+                result["warnings"].append(
+                    f"project auto-resolved to the key's single visible project "
+                    f"{project} ({projects[0].get('name')})"
+                )
+            else:
+                raise NeedsHuman(
+                    "PROJECT_REQUIRED",
+                    f"agent creation needs --project-id: the API key sees {len(projects)} project(s); "
+                    "refusing to pick one arbitrarily",
+                )
+        import os
+
+        config = dict(desired.agent.provider_config)
+        credentials: dict[str, Any] = {"config": config}
+        if desired.agent.provider_type == "livekit":
+            # The platform requires a connection method for LiveKit agents. Use the
+            # customer's own LiveKit credentials from the environment — never invent them.
+            lk_url, lk_key, lk_secret = (os.environ.get("LIVEKIT_URL"),
+                                         os.environ.get("LIVEKIT_API_KEY"),
+                                         os.environ.get("LIVEKIT_API_SECRET"))
+            if lk_url and lk_key and lk_secret:
+                credentials["api_key"] = lk_key
+                config.setdefault("url", lk_url)
+                config.setdefault("api_secret", lk_secret)
+            else:
+                result["warnings"].append(
+                    "no LIVEKIT_URL/LIVEKIT_API_KEY/LIVEKIT_API_SECRET in the environment; "
+                    "agent creation may be rejected until a connection method is configured"
+                )
         payload = {
             "name": desired.agent.name,
             "description": desired.agent.description,
-            "project": desired.agent.project,
+            "project": project,
             "provider": {
                 "type": desired.agent.provider_type,
-                "credentials": {"config": desired.agent.provider_config},
+                "credentials": credentials,
             },
         }
         if not apply:
@@ -114,7 +163,47 @@ def reconcile(client: CekuraClient, desired: CekuraDesiredState, *, apply: bool,
             result["kb_planned_uploads"] = [k.path for k in desired.kb_uploads if k.approved]
             result["dashboard_url"] = desired.dashboard_url or CEKURA_DASHBOARD_URL
             return result
-        agent = client.create_agent(payload)
+        from ..errors import AgentError, BlockedByAccess
+
+        try:
+            agent = client.create_agent(payload)
+        except AgentError as exc:
+            if "connection method" not in str(exc) and "credentials" not in str(exc):
+                raise
+            # The platform requires SOME connection method at creation time. Provider
+            # credentials belong to the customer; rather than inventing them we fall back
+            # to the no-config chat connection (sms) as an explicit, warned placeholder —
+            # mock tools / dynamic variables / KB are independent of the connection type.
+            placeholders = [
+                {"type": "whatsapp"},
+                {"type": "self_hosted",
+                 "config": {"url": "wss://placeholder.invalid/replace-with-real-agent-endpoint"}},
+            ]
+            agent = None
+            last_exc: AgentError | None = None
+            for chat_details in placeholders:
+                fallback = dict(payload)
+                fallback["provider"] = dict(payload["provider"])
+                fallback["provider"]["chat_agent_details"] = chat_details
+                try:
+                    agent = client.create_agent(fallback)
+                    result["warnings"].append(
+                        f"agent created with a PLACEHOLDER '{chat_details['type']}' chat connection "
+                        "because no provider connection credentials were available — replace with the "
+                        "real connection (LiveKit creds / Pipecat Cloud key / phone number) in the "
+                        "dashboard before running tests"
+                    )
+                    break
+                except AgentError as exc2:
+                    last_exc = exc2
+            if agent is None:
+                raise BlockedByAccess(
+                    "PROVIDER_CONNECTION_REQUIRED",
+                    f"the platform requires provider connection credentials to create this agent "
+                    f"(original error: {exc}; placeholder fallbacks also rejected: {last_exc}). "
+                    "Provide them via the environment (e.g. LIVEKIT_URL/LIVEKIT_API_KEY/"
+                    "LIVEKIT_API_SECRET) or create the agent in the dashboard and pass --agent-id.",
+                ) from last_exc
         agent_id = int(agent["id"])
         result["agent"] = {"action": "created", "id": agent_id, "name": agent.get("name")}
 
@@ -175,7 +264,7 @@ def reconcile(client: CekuraClient, desired: CekuraDesiredState, *, apply: bool,
 
     # ---- knowledge base (approved entries only; upload-only, never delete)
     approved = [k for k in desired.kb_uploads if k.approved]
-    existing_files = set(agent.get("knowledge_base_files", []))
+    existing_files = _kb_names(agent.get("knowledge_base_files"))
     to_upload = [k for k in approved if Path(k.path).name not in existing_files]
     result["kb_planned_uploads"] = [k.path for k in to_upload]
     skipped = [k.path for k in desired.kb_uploads if not k.approved]
@@ -199,7 +288,7 @@ def reconcile(client: CekuraClient, desired: CekuraDesiredState, *, apply: bool,
             actual = next((v for v in after_vars if v["name"] == var["name"]), None)
             if actual != var:
                 mismatches.append(f"dynamic variable {var['name']} GET-after mismatch")
-        kb_after = set(after_agent.get("knowledge_base_files", []))
+        kb_after = _kb_names(after_agent.get("knowledge_base_files"))
         for entry in approved:
             if Path(entry.path).name not in kb_after:
                 mismatches.append(f"KB file {entry.path} missing after upload")

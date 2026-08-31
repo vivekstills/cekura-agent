@@ -64,6 +64,8 @@ class _Handler(BaseHTTPRequestHandler):
         if fail:
             return self._send(fail, {"error": f"injected {fail}"})
         path = self.path.split("?")[0]
+        if path == "/user/v1/projects/":
+            return self._send(200, {"results": self.server.projects})
         if path == "/test_framework/v2/aiagents/":
             return self._send(200, {"results": list(self.server.agents.values())})
         if m := AGENT_RE.match(path):
@@ -120,7 +122,11 @@ class _Handler(BaseHTTPRequestHandler):
             raw = (f"Content-Type: {content_type}\r\n\r\n").encode() + self._body()
             msg = BytesParser(policy=email_default_policy).parsebytes(raw)
             names = [part.get_filename() for part in msg.iter_parts() if part.get_filename()]
-            agent["knowledge_base_files"] = sorted(set(agent["knowledge_base_files"]) | set(names))
+            existing = {f["name"] for f in agent["knowledge_base_files"]}
+            for name in names:  # faithful to the real API: objects, not bare strings
+                if name not in existing:
+                    agent["knowledge_base_files"].append({"id": self.server.next_id, "name": name})
+                    self.server.next_id += 1
             return self._finish_mutation(200, {"uploaded": names,
                                                "knowledge_base_files": agent["knowledge_base_files"]})
 
@@ -163,6 +169,7 @@ class FakeCekuraServer(HTTPServer):
         super().__init__(("127.0.0.1", 0), _Handler)
         self.api_key = api_key
         self.agents: dict[int, dict] = {}
+        self.projects: list[dict] = [{"id": 1, "name": "Test Project"}]
         self.next_id = 101
         self.requests: list[dict] = []
         self.error_queue: list[int] = []

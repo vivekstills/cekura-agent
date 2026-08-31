@@ -80,6 +80,12 @@ class CekuraClient:
             raise AgentError(f"{method} {path} -> http {resp.status_code}: {resp.text[:300]}")
         return resp.json()
 
+    # ------------------------------------------------------------- projects
+
+    def list_projects(self) -> list[dict]:
+        data = self._get("/user/v1/projects/")
+        return data.get("results", data) if isinstance(data, dict) else data
+
     # ------------------------------------------------------------- agents
 
     def list_agents(self) -> list[dict]:

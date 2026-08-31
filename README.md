@@ -8,7 +8,15 @@ verification, idempotence and rollback evidence at every step.
 ```
 cekura-agent integrate /path/to/repo --mode test            # dry-run (default)
 cekura-agent integrate /path/to/repo --mode observe --apply # actually patch
+./demo.sh                                                   # 3-minute offline walkthrough
 ```
+
+**Live-verified** (2026-08-31, real keys): Kimi K3 planning via OpenRouter; Cekura platform
+registration with GET-after exact verification — dashboard agent
+[22338](https://dashboard.cekura.ai/agents/22338) carries the mock tool (3 distinct
+input→output mappings), both dynamic variables and the KB document extracted from the repo;
+real-repo patch of `livekit-examples/outbound-caller-python` (tracer inserted before an
+`asyncio.create_task(session.start(...))`). Details: `EVALUATION.md`.
 
 ## Requested capability -> where it lives
 
@@ -55,4 +63,7 @@ pytest
 - Secrets are read from env only, redacted from all output, and scanned for before packaging.
 - Every `--apply` writes a rollback manifest; `cekura-agent rollback` restores exact original hashes.
 
-See `DESIGN.md`, `DECISIONS.md`, `SECURITY.md`, `COMPATIBILITY.md`, `EVALUATION.md` for details (slice G).
+Docs: `DESIGN.md` (architecture) · `DECISIONS.md` (incl. real-API contracts discovered live) ·
+`SECURITY.md` · `COMPATIBILITY.md` (supported matrix + stable reason codes) · `EVALUATION.md`
+(test suite, offline matrix, live results) · `SUBMISSION_CHECKLIST.md` (exact commands) ·
+`eval/matrix.md` (six CEK-8066 repos classified).

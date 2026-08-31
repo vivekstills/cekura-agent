@@ -29,7 +29,8 @@ _SECRET_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
         "api_key_assignment",
         re.compile(
             r"(?i)\b([A-Z0-9_]*(?:API_KEY|API_SECRET|ACCESS_TOKEN|SECRET_KEY|AUTH_TOKEN)\b[ \t]*[:=][ \t]*['\"]?)"
-            r"(?!os\.)(?!process\.)[A-Za-z0-9._~+/-]{12,}"
+            # value must contain a digit: excludes identifier chains like settings.cekura_api_key
+            r"(?!os\.)(?!process\.)(?=[A-Za-z0-9._~+/-]*\d)[A-Za-z0-9._~+/-]{12,}"
         ),
         r"\1[REDACTED]",
     ),

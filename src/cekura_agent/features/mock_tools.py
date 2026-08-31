@@ -29,25 +29,34 @@ _TYPE_DEFAULTS: dict[str, Any] = {
 }
 
 
-def synthetic_value(name: str, type_name: str) -> Any:
+def synthetic_value(name: str, type_name: str, variant: int = 0) -> Any:
+    """Clearly-synthetic value; `variant` yields DISTINCT inputs per mock entry
+    (the platform maps each input to exactly one output)."""
     lowered = name.lower()
     if "phone" in lowered:
-        return "+15550100001"  # 555 fictional range
+        return f"+1555010{1 + variant:04d}"  # 555 fictional range
     if "date" in lowered:
-        return "2026-01-15"
+        return f"2026-01-{15 + variant:02d}"
     if "time" in lowered:
-        return "10:00"
+        return f"{10 + variant}:00"
     if "email" in lowered:
-        return "mock.caller@example.com"
+        return f"mock.caller{variant + 1}@example.com"
     if "name" in lowered:
-        return "Mock Caller"
+        return f"Mock Caller {variant + 1}"
     if "zip" in lowered or "postal" in lowered:
-        return "00000"
+        return f"{variant:05d}"
     if lowered.endswith("_id") or lowered == "id" or "account" in lowered:
-        return "MOCK-ID-0001"
+        return f"MOCK-ID-{variant + 1:04d}"
     if "amount" in lowered or "price" in lowered:
-        return 10.0
-    return _TYPE_DEFAULTS.get(type_name.lower(), "MOCK-VALUE")
+        return 10.0 * (variant + 1)
+    base = _TYPE_DEFAULTS.get(type_name.lower(), "MOCK-VALUE")
+    if isinstance(base, str):
+        return base if variant == 0 else f"{base}-{('EMPTY', 'ERROR')[min(variant - 1, 1)]}"
+    if isinstance(base, bool):
+        return base
+    if isinstance(base, (int, float)):
+        return type(base)(base + variant)
+    return base
 
 
 def _params_of(detail: dict[str, Any]) -> dict[str, str]:
@@ -71,16 +80,21 @@ def build_mock_tool_specs(inspection: InspectionResult) -> list[MockToolSpec]:
             existing.evidence_ids.append(ev.id)
             continue  # keep the richer (schema-bearing) definition
 
-        success_input = {p: synthetic_value(p, t) for p, t in params.items()}
         success_output = {"status": "ok", "result": f"MOCK result for {name}", "mock": True}
         error_output = {"status": "error", "error": f"MOCK simulated failure of {name}", "mock": True}
         empty_output = {"status": "ok", "result": None, "mock": True,
                         "message": "MOCK empty result (no records found)"}
-        variants = [
-            MockDataVariant(variant="success", input=success_input, output=success_output),
-            MockDataVariant(variant="empty", input=success_input, output=empty_output),
-            MockDataVariant(variant="error", input=success_input, output=error_output),
-        ]
+        if params:
+            # distinct input per variant: the platform maps each input to exactly one output
+            variants = [
+                MockDataVariant(variant=label,
+                                input={p: synthetic_value(p, t, i) for p, t in params.items()},
+                                output=output)
+                for i, (label, output) in enumerate(
+                    [("success", success_output), ("empty", empty_output), ("error", error_output)])
+            ]
+        else:
+            variants = [MockDataVariant(variant="success", input={}, output=success_output)]
         spec = MockToolSpec(
             name=name,
             description=str(ev.detail.get("description") or f"Mock for tool {name}"),

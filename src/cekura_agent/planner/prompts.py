@@ -37,7 +37,8 @@ Hard rules:
 - `insert_track_session` / `insert_observe_session` must target the session_start evidence file
   and include both the entrypoint and session_start evidence ids.
 - `pipecat_single_step` / `pipecat_multi_step` must cite the pipeline_task evidence id and
-  respect `has_custom_kwargs` (custom kwargs => multi_step).
+  respect `has_custom_kwargs` (custom kwargs => multi_step); params must include
+  {"mode": "<the requested mode>"}.
 - `add_dependency` params: {"manifest": <existing manifest path or "requirements.txt">, "package": <given sdk package>}.
 - `add_env_placeholder` params: {"file": ".env.example", "keys": [...]}.
 - Never target production configs, delete tests, or modify business logic.
