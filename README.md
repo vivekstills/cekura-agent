@@ -55,14 +55,16 @@ Kimi K3 is responsible for choosing from the constrained action set and for synt
 
 ## Installation
 
-From a fresh clone:
+From a fresh clone, enter the directory you cloned into first. For example:
 
 ```bash
-cd cekura-agent   # use the actual directory name you cloned into
+cd cekura-agent
 python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -e '.[dev]'
+python -m pip install -e '.[dev]'
 ```
+
+If the directory name contains spaces, quote it: `cd "cekura agent"`.
 
 Check it:
 
