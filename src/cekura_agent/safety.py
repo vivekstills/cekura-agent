@@ -95,12 +95,23 @@ def scan_paths_for_secrets(paths: list[Path]) -> list[dict[str, str]]:
 
 
 def iter_repo_files(root: Path, *, max_file_bytes: int = 2_000_000) -> list[Path]:
-    """Deterministically ordered repo file listing honouring SKIP_DIRS."""
+    """Deterministically ordered repo file listing honouring SKIP_DIRS.
+
+    Symlinks are skipped to prevent repository-supplied links from causing
+    reads outside the approved root (e.g. a symlink to /etc/passwd or .env).
+    """
+    root_resolved = root.resolve()
     files: list[Path] = []
     for path in sorted(root.rglob("*")):
-        if not path.is_file():
+        if path.is_symlink() or not path.is_file():
             continue
         if any(part in SKIP_DIRS for part in path.relative_to(root).parts):
+            continue
+        try:
+            resolved = path.resolve()
+        except (OSError, ValueError):
+            continue
+        if resolved != root_resolved and root_resolved not in resolved.parents:
             continue
         try:
             if path.stat().st_size > max_file_bytes:

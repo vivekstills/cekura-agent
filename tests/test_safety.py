@@ -51,3 +51,13 @@ def test_iter_repo_files_skips_dirs(tmp_path: Path):
     (tmp_path / "app.py").write_text("print('hi')\n")
     files = iter_repo_files(tmp_path)
     assert [f.name for f in files] == ["app.py"]
+
+
+def test_iter_repo_files_skips_symlinks_to_outside(tmp_path: Path, tmp_path_factory):
+    outside = tmp_path_factory.mktemp("outside")
+    secret = outside / "secret.txt"
+    secret.write_text("OPENROUTER_API_KEY = sk-or-v1-1234567890123456")
+    (tmp_path / "link").symlink_to(secret)
+    (tmp_path / "real.py").write_text("x")
+    files = iter_repo_files(tmp_path)
+    assert [f.name for f in files] == ["real.py"]
