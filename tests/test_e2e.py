@@ -41,7 +41,8 @@ def no_external_network(monkeypatch):
 
 @pytest.mark.parametrize("fixture,framework", [("livekit_basic", "livekit"),
                                                ("pipecat_single", "pipecat"),
-                                               ("pipecat_custom", "pipecat")])
+                                               ("pipecat_custom", "pipecat"),
+                                               ("livekit_multiple_starts", "livekit")])
 def test_offline_autonomous_matrix(copy_fixture, no_external_network, fixture, framework):
     repo = copy_fixture(fixture)
     original = _hashes(repo)

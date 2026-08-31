@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from ..models import ActionType, Framework, Mode
 
-# Verified live on PyPI 2026-08-31: cekura 1.6.5 ships both extras.
-SDK_VERSION_SPEC = ">=1.6.5"
+# Verified live on PyPI 2026-08-31: cekura 1.6.4+ ships both extras.
+SDK_VERSION_SPEC = ">=1.6.4"
 
 
 def sdk_package(framework: Framework) -> str:

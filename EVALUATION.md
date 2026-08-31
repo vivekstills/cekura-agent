@@ -17,18 +17,19 @@ with a loopback-only socket guard.
 - refusal fixtures: readme_only (NO_FRAMEWORK), pipecat_direct_observe
   (DIRECT_OBSERVE_PRESENT), pipecat_worker (PIPECAT_WORKER_API) — exit 2 with stable codes
 - **all six CEK-8066 top picks executed** (`integrate` ran on every target, incl. the pinned
-  `twilio-chatbot` wings): SUPPORTED targets (outbound-caller-python, telephony-server) passed
-  the full offline E2E (15/15 checks, no-op re-apply, exact rollback); the rest produced
-  structured exit-2 refusals with stable reason codes — per-target outcomes in COMPATIBILITY.md
+  `twilio-chatbot` wings): SUPPORTED targets (outbound-caller-python, telephony-server,
+  QuickVoice, AIReceptionist) passed the full offline E2E (15/15 checks, no-op re-apply,
+  exact rollback); the Pipecat Worker-API and aggregator-less targets produced structured
+  exit-2 refusals with stable reason codes — per-target outcomes in COMPATIBILITY.md
 
 ## LIVE verification (real keys, 2026-08-31)
 | What | Result |
 |---|---|
 | Kimi K3 planning via OpenRouter | `LIVE_VERIFIED` — moonshotai/kimi-k3, valid plans on livekit + pipecat repos; canary caught a real model quirk (omitted host-known param) now normalized. Costs: $0.0141 / $0.0226 / $0.0136 per plan |
 | Cekura platform registration | `LIVE_VERIFIED` — agent **22338** (`dashboard.cekura.ai/agents/22338`): mock tool `order_lookup` with 3 distinct input→output mappings, dynamic variables `caller_name` + `patient_id`, KB `pricing_guide.md`, `tracing_enabled=true`; GET-after exact match; reconciliation idempotent on re-run |
-| Real-repo code integration | outbound-caller-python patched by the full autonomous run (real Kimi plan): tracer inserted before the `asyncio.create_task(session.start(...))` statement; 15/15 checks; rollback manifest written |
+| Real-repo code integration | outbound-caller-python, QuickVoice and AIReceptionist patched by the full autonomous run (real Kimi plan for outbound-caller-python): tracer inserted before `session.start()`; 15/15 checks; rollback manifest written |
 | LiveKit agent creation | `BLOCKED_BY_ACCESS_OR_DEPENDENCY: PROVIDER_CONNECTION_REQUIRED` — the platform requires LiveKit credentials or a connection method; unblocks by setting `LIVEKIT_URL`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` and re-running one command |
-| SDK dependency | `LIVE_VERIFIED` — cekura==1.6.5 resolvable on PyPI with both extras |
+| SDK dependency | `LIVE_VERIFIED` — cekura 1.6.4+ resolvable on PyPI with both extras (1.6.5 available) |
 | Scenario-run E2E | `NOT_RUN` — next step; requires a runnable agent connection (never faked) |
 
 ## Budget

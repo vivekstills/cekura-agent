@@ -3,9 +3,10 @@
 1. **Planner-JSON-only model.** Kimi K3 (`moonshotai/kimi-k3`, verified on OpenRouter with
    `tools`/`structured_outputs`) plans; the host executes. Reliability and safety beat
    free-form agent edits for a repeatable integration task.
-2. **SDK pin `cekura[...] >=1.6.5`.** Verified live on PyPI (both `livekit` and `pipecat`
-   extras). Cekura's own skills repo pins 1.2.0/1.4.1 — stale relative to the current docs
-   (which use >=1.6.5); we follow the docs and verify resolvability at run time in staging mode.
+2. **SDK pin `cekura[...] >=1.6.4`.** Verified live on PyPI (both `livekit` and `pipecat`
+   extras, 1.6.4 and 1.6.5 available). Cekura's own skills repo pins 1.2.0/1.4.1 — stale
+   relative to the current docs (which use >=1.6.5); we follow the SDK-contact's guidance
+   that "any works" and verify resolvability at run time in staging mode.
 3. **Host-known params are normalized, not model-echoed.** The live Kimi canary omitted the
    `mode` param on the pipecat action; we `setdefault` host-known values (mode, agent_id) and
    still reject contradictions. (Found via a real $0.01 canary run.)

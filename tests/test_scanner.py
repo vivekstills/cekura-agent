@@ -88,6 +88,14 @@ def test_ambiguous_entrypoints_needs_human():
     assert result.matrix.decision_reason == "AMBIGUOUS_ENTRYPOINT"
 
 
+def test_jobcontext_helper_is_not_ambiguous():
+    result = inspect_repo(FIXTURES / "livekit_helper_not_entrypoint")
+    assert result.matrix.framework == Framework.LIVEKIT
+    assert result.matrix.decision == CapabilityStatus.SUPPORTED
+    entries = result.evidence_map.of_kind(EvidenceKind.ENTRYPOINT)
+    assert [e.symbol for e in entries] == ["entrypoint"]
+
+
 def test_unsupported_topology_needs_human():
     result = inspect_repo(FIXTURES / "unsupported_topology")
     assert result.matrix.framework == Framework.PIPECAT

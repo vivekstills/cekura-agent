@@ -1,2 +1,2 @@
 pipecat-ai[daily,deepgram,openai,cartesia,silero]~=0.0.100
-cekura[pipecat]>=1.6.5
+cekura[pipecat]>=1.6.4

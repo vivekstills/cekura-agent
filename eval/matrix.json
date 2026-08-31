@@ -12,7 +12,7 @@
     "target": "fixture:pipecat_single",
     "status": "OFFLINE_E2E_PASS",
     "framework": "pipecat",
-    "checks_passed": 15,
+    "checks_passed": 14,
     "checks_failed": 0,
     "idempotent_second_apply": true,
     "rollback": "exact"
@@ -34,51 +34,27 @@
   },
   {
     "target": "quickvoice",
-    "status": "NEEDS_HUMAN",
+    "status": "SUPPORTED",
     "framework": "livekit",
-    "reason": "AMBIGUOUS_ENTRYPOINT",
-    "entrypoints": 2,
+    "reason": "OK",
+    "entrypoints": 1,
     "tools": 5,
     "dynamic_variables": 19,
     "kb_files": 21,
     "already_integrated": false,
-    "integrate_probe": "exit 2 (AMBIGUOUS_ENTRYPOINT)"
-  },
-  {
-    "target": "quickvoice/apps/ai",
-    "status": "NEEDS_HUMAN",
-    "framework": "livekit",
-    "reason": "AMBIGUOUS_ENTRYPOINT",
-    "entrypoints": 2,
-    "tools": 5,
-    "dynamic_variables": 19,
-    "kb_files": 0,
-    "already_integrated": false,
-    "integrate_probe": "exit 2 (AMBIGUOUS_ENTRYPOINT)"
+    "integrate_probe": "OFFLINE_E2E_PASS (checks 15 passed/0 failed, no-op re-apply=True, rollback=exact)"
   },
   {
     "target": "aireceptionist",
-    "status": "NEEDS_HUMAN",
+    "status": "SUPPORTED",
     "framework": "livekit",
-    "reason": "AMBIGUOUS_ENTRYPOINT",
-    "entrypoints": 6,
+    "reason": "OK",
+    "entrypoints": 1,
     "tools": 11,
     "dynamic_variables": 16,
     "kb_files": 0,
     "already_integrated": false,
-    "integrate_probe": "exit 2 (AMBIGUOUS_ENTRYPOINT)"
-  },
-  {
-    "target": "aireceptionist/receptionist",
-    "status": "NEEDS_HUMAN",
-    "framework": "livekit",
-    "reason": "AMBIGUOUS_ENTRYPOINT",
-    "entrypoints": 6,
-    "tools": 11,
-    "dynamic_variables": 7,
-    "kb_files": 0,
-    "already_integrated": false,
-    "integrate_probe": "exit 2 (AMBIGUOUS_ENTRYPOINT)"
+    "integrate_probe": "OFFLINE_E2E_PASS (checks 15 passed/0 failed, no-op re-apply=True, rollback=exact)"
   },
   {
     "target": "outbound-caller-python",

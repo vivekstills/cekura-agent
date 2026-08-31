@@ -6,10 +6,8 @@
 | fixture:pipecat_single | OFFLINE_E2E_PASS | pipecat |  |  |  |  |  |  |
 | fixture:pipecat_custom | OFFLINE_E2E_PASS | pipecat |  |  |  |  |  |  |
 | fixture:readme_only (refusal) | NEEDS_HUMAN |  | NO_FRAMEWORK |  |  |  |  | exit 2 |
-| quickvoice | NEEDS_HUMAN | livekit | AMBIGUOUS_ENTRYPOINT | 2 | 5 | 19 | 21 | exit 2 (AMBIGUOUS_ENTRYPOINT) |
-| quickvoice/apps/ai | NEEDS_HUMAN | livekit | AMBIGUOUS_ENTRYPOINT | 2 | 5 | 19 | 0 | exit 2 (AMBIGUOUS_ENTRYPOINT) |
-| aireceptionist | NEEDS_HUMAN | livekit | AMBIGUOUS_ENTRYPOINT | 6 | 11 | 16 | 0 | exit 2 (AMBIGUOUS_ENTRYPOINT) |
-| aireceptionist/receptionist | NEEDS_HUMAN | livekit | AMBIGUOUS_ENTRYPOINT | 6 | 11 | 7 | 0 | exit 2 (AMBIGUOUS_ENTRYPOINT) |
+| quickvoice | SUPPORTED | livekit | OK | 1 | 5 | 19 | 21 | OFFLINE_E2E_PASS (checks 15 passed/0 failed, no-op re-apply=True, rollback=exact) |
+| aireceptionist | SUPPORTED | livekit | OK | 1 | 11 | 16 | 0 | OFFLINE_E2E_PASS (checks 15 passed/0 failed, no-op re-apply=True, rollback=exact) |
 | outbound-caller-python | SUPPORTED | livekit | OK | 1 | 5 | 2 | 0 | OFFLINE_E2E_PASS (checks 15 passed/0 failed, no-op re-apply=True, rollback=exact) |
 | pipecat-examples | NEEDS_HUMAN | pipecat | AMBIGUOUS_ENTRYPOINT | 68 | 2 | 6 | 0 | exit 2 (AMBIGUOUS_ENTRYPOINT) |
 | pipecat-examples/twilio-chatbot/inbound | NEEDS_HUMAN | pipecat | AMBIGUOUS_ENTRYPOINT | 2 | 0 | 0 | 0 | exit 2 (AMBIGUOUS_ENTRYPOINT) |

@@ -229,9 +229,9 @@ def _scan_function(rel: str, fn: ast.FunctionDef | ast.AsyncFunctionDef, lines: 
     params = [a.arg for a in fn.args.args + fn.args.posonlyargs + fn.args.kwonlyargs]
     annotations = {a.arg: _name_of(a.annotation) for a in fn.args.args if a.annotation is not None}
 
-    is_livekit_entry = (
-        "JobContext" in annotations.values()
-        or fn.name in worker_entry_names
+    has_job_context = "JobContext" in annotations.values()
+    has_worker_anchor = (
+        fn.name in worker_entry_names
         or any("rtc_session" in _dotted(d.func if isinstance(d, ast.Call) else d) for d in fn.decorator_list)
     )
     ctx_param = next((a for a, ann in annotations.items() if ann == "JobContext"), None)
@@ -421,6 +421,7 @@ def _scan_function(rel: str, fn: ast.FunctionDef | ast.AsyncFunctionDef, lines: 
                 })
 
     # entrypoint evidence for LiveKit-shaped functions
+    is_livekit_entry = has_job_context and (has_worker_anchor or "session_start" in body_evidence)
     if is_livekit_entry:
         add(EvidenceKind.ENTRYPOINT, fn, symbol=fn.name, detail={
             "framework": "livekit", "function": fn.name, "params": params,

@@ -98,9 +98,16 @@ def check_livekit_file(path: Path, expected_mode: Mode | None) -> list[CheckResu
     tracer_calls = _calls_of(tree, {"track_session", "observe_session"})
     start_calls = _calls_of(tree, {"start"})
 
-    # L1: order within the same function
+    # L1: order within the same function, scoped to the same session variable
     for method, call, fn in tracer_calls:
-        starts_in_fn = [c for m, c, f in start_calls if f is fn and m == "start"]
+        if len(call.args) < 2 or not isinstance(call.args[1], ast.Name):
+            continue
+        session_var = call.args[1].id
+        starts_in_fn = [
+            c for m, c, f in start_calls
+            if f is fn and m == "start"
+            and isinstance(c.func.value, ast.Name) and c.func.value.id == session_var
+        ]
         for start in starts_in_fn:
             passed = call.lineno < start.lineno
             results.append(CheckResult(

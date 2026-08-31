@@ -15,8 +15,8 @@ cekura-agent integrate /path/to/repo --mode observe --apply # actually patch
 registration with GET-after exact verification — dashboard agent
 [22338](https://dashboard.cekura.ai/agents/22338) carries the mock tool (3 distinct
 input→output mappings), both dynamic variables and the KB document extracted from the repo;
-real-repo patch of `livekit-examples/outbound-caller-python` (tracer inserted before an
-`asyncio.create_task(session.start(...))`). Details: `EVALUATION.md`.
+real-repo patch of `livekit-examples/outbound-caller-python`, `QuickVoice` and
+`AIReceptionist` (tracer inserted before `session.start()`). Details: `EVALUATION.md`.
 
 ## Requested capability -> where it lives
 
