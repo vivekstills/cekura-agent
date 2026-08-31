@@ -16,7 +16,10 @@ with a loopback-only socket guard.
   idempotent second apply (zero diff) → exact-hash rollback — PASS
 - refusal fixtures: readme_only (NO_FRAMEWORK), pipecat_direct_observe
   (DIRECT_OBSERVE_PRESENT), pipecat_worker (PIPECAT_WORKER_API) — exit 2 with stable codes
-- six CEK-8066 top picks classified read-only (results in COMPATIBILITY.md)
+- **all six CEK-8066 top picks executed** (`integrate` ran on every target, incl. the pinned
+  `twilio-chatbot` wings): SUPPORTED targets (outbound-caller-python, telephony-server) passed
+  the full offline E2E (15/15 checks, no-op re-apply, exact rollback); the rest produced
+  structured exit-2 refusals with stable reason codes — per-target outcomes in COMPATIBILITY.md
 
 ## LIVE verification (real keys, 2026-08-31)
 | What | Result |

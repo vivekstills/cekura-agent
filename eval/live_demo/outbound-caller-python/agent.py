@@ -1,33 +1,33 @@
 from __future__ import annotations
 
 import asyncio
-import logging
-from dotenv import load_dotenv
 import json
+import logging
 import os
 from typing import Any
 
-from livekit import rtc, api
+from cekura.livekit import LiveKitTracer
+from dotenv import load_dotenv
+from livekit import api, rtc
 from livekit.agents import (
-    AgentSession,
     Agent,
+    AgentSession,
     JobContext,
-    function_tool,
-    RunContext,
-    get_job_context,
-    cli,
-    WorkerOptions,
     RoomInputOptions,
+    RunContext,
+    WorkerOptions,
+    cli,
+    function_tool,
+    get_job_context,
 )
 from livekit.plugins import (
-    deepgram,
-    openai,
     cartesia,
-    silero,
+    deepgram,
     noise_cancellation,  # noqa: F401
+    openai,
+    silero,
 )
 from livekit.plugins.turn_detector.english import EnglishModel
-from cekura.livekit import LiveKitTracer
 
 # Cekura tracing (added by cekura-agent)
 cekura_tracer = LiveKitTracer(

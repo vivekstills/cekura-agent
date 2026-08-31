@@ -28,12 +28,17 @@
 | `OPENROUTER_KEY_MISSING` / `OPENROUTER_UNAUTHORIZED` | live planning needs `OPENROUTER_API_KEY` |
 | `PIPECAT_MOCK_ROUTING_UNCONFIGURED` | pipecat mock routing requested without an explicit endpoint contract |
 
-## Real-repo classification (2026-08-31, read-only; full table in eval/matrix.md)
-- outbound-caller-python → SUPPORTED (5 tools, create_task-wrapped start)
-- telephony-server → SUPPORTED (single pipecat pipeline bridge)
-- QuickVoice, AIReceptionist → AMBIGUOUS_ENTRYPOINT (multiple worker entrypoints)
-- pipecat-examples subprojects → PIPECAT_WORKER_API / MISSING_AGGREGATOR_PAIR / AMBIGUOUS
-- NVIDIA voice-agent-examples subprojects → MISSING_AGGREGATOR_PAIR / AMBIGUOUS
+## CEK-8066 top picks — existence, execution, test outcome (2026-08-31; full table in eval/matrix.md)
+| Top pick | Executed | Outcome |
+|---|---|---|
+| outbound-caller-python | full offline E2E on a copy **+ live real-Kimi apply** | SUPPORTED — 15/15 checks, no-op re-apply, exact rollback; tracer before `asyncio.create_task(session.start(...))`; 5 mock tools + vars prepared (platform blocked on LiveKit creds) |
+| telephony-server | full offline E2E on a copy | SUPPORTED — 15/15 checks on the older `OpenAILLMContext`/`create_context_aggregator` API via the multi-step adapter; no-op re-apply; exact rollback |
+| pipecat-examples (Twilio phone bot pinned) | integrate executed on root + `twilio-chatbot/inbound` + `twilio-chatbot/outbound` | outbound → exit 2 `PIPECAT_WORKER_API` (new `PipelineWorker` runner API — documented SDK contract targets `PipelineTask`); inbound → exit 2 `AMBIGUOUS_ENTRYPOINT`; other subprojects: `PIPECAT_WORKER_API` / `MISSING_AGGREGATOR_PAIR` |
+| QuickVoice | integrate executed on root + `apps/ai` | exit 2 `AMBIGUOUS_ENTRYPOINT` (2 worker entrypoints; 5 tools, 19 vars, 21 KB docs detected — ready once target is specified) |
+| AIReceptionist | integrate executed on root + `receptionist/` | exit 2 `AMBIGUOUS_ENTRYPOINT` (6 entrypoints; 11 tools detected) |
+| NVIDIA voice-agent-examples | integrate executed on root + 3 subprojects | exit 2 `NO_ENTRYPOINT` root; subprojects `MISSING_AGGREGATOR_PAIR` (SDK would silently disable) / `AMBIGUOUS_ENTRYPOINT` |
+
+Every refusal is a structured exit-2 with a stable reason code — executed and tested, never skipped.
 
 Out of scope v1: LiveKit JS/TS (`@cekura/livekit` exists; Python-only per trial scope),
 scenario-run E2E automation (statuses stay `NOT_RUN`, never faked).

@@ -30,7 +30,7 @@
     "target": "fixture:readme_only (refusal)",
     "status": "NEEDS_HUMAN",
     "reason": "NO_FRAMEWORK",
-    "exit_code": 2
+    "integrate_probe": "exit 2"
   },
   {
     "target": "quickvoice",
@@ -41,7 +41,8 @@
     "tools": 5,
     "dynamic_variables": 19,
     "kb_files": 21,
-    "already_integrated": false
+    "already_integrated": false,
+    "integrate_probe": "exit 2 (AMBIGUOUS_ENTRYPOINT)"
   },
   {
     "target": "quickvoice/apps/ai",
@@ -52,7 +53,8 @@
     "tools": 5,
     "dynamic_variables": 19,
     "kb_files": 0,
-    "already_integrated": false
+    "already_integrated": false,
+    "integrate_probe": "exit 2 (AMBIGUOUS_ENTRYPOINT)"
   },
   {
     "target": "aireceptionist",
@@ -63,7 +65,8 @@
     "tools": 11,
     "dynamic_variables": 16,
     "kb_files": 0,
-    "already_integrated": false
+    "already_integrated": false,
+    "integrate_probe": "exit 2 (AMBIGUOUS_ENTRYPOINT)"
   },
   {
     "target": "aireceptionist/receptionist",
@@ -74,7 +77,8 @@
     "tools": 11,
     "dynamic_variables": 7,
     "kb_files": 0,
-    "already_integrated": false
+    "already_integrated": false,
+    "integrate_probe": "exit 2 (AMBIGUOUS_ENTRYPOINT)"
   },
   {
     "target": "outbound-caller-python",
@@ -85,7 +89,8 @@
     "tools": 5,
     "dynamic_variables": 2,
     "kb_files": 0,
-    "already_integrated": false
+    "already_integrated": false,
+    "integrate_probe": "OFFLINE_E2E_PASS (checks 15 passed/0 failed, no-op re-apply=True, rollback=exact)"
   },
   {
     "target": "pipecat-examples",
@@ -96,7 +101,32 @@
     "tools": 2,
     "dynamic_variables": 6,
     "kb_files": 0,
-    "already_integrated": false
+    "already_integrated": false,
+    "integrate_probe": "exit 2 (AMBIGUOUS_ENTRYPOINT)"
+  },
+  {
+    "target": "pipecat-examples/twilio-chatbot/inbound",
+    "status": "NEEDS_HUMAN",
+    "framework": "pipecat",
+    "reason": "AMBIGUOUS_ENTRYPOINT",
+    "entrypoints": 2,
+    "tools": 0,
+    "dynamic_variables": 0,
+    "kb_files": 0,
+    "already_integrated": false,
+    "integrate_probe": "exit 2 (AMBIGUOUS_ENTRYPOINT)"
+  },
+  {
+    "target": "pipecat-examples/twilio-chatbot/outbound",
+    "status": "NEEDS_HUMAN",
+    "framework": "pipecat",
+    "reason": "PIPECAT_WORKER_API",
+    "entrypoints": 1,
+    "tools": 0,
+    "dynamic_variables": 0,
+    "kb_files": 0,
+    "already_integrated": false,
+    "integrate_probe": "exit 2 (PIPECAT_WORKER_API)"
   },
   {
     "target": "pipecat-examples/audio-recording-s3-multipart-upload",
@@ -107,7 +137,8 @@
     "tools": 0,
     "dynamic_variables": 0,
     "kb_files": 0,
-    "already_integrated": false
+    "already_integrated": false,
+    "integrate_probe": "exit 2 (PIPECAT_WORKER_API)"
   },
   {
     "target": "pipecat-examples/aws-agentcore",
@@ -118,7 +149,8 @@
     "tools": 0,
     "dynamic_variables": 0,
     "kb_files": 0,
-    "already_integrated": false
+    "already_integrated": false,
+    "integrate_probe": "exit 2 (PIPECAT_WORKER_API)"
   },
   {
     "target": "pipecat-examples/aws-strands",
@@ -129,7 +161,8 @@
     "tools": 0,
     "dynamic_variables": 0,
     "kb_files": 0,
-    "already_integrated": false
+    "already_integrated": false,
+    "integrate_probe": "exit 2 (AMBIGUOUS_ENTRYPOINT)"
   },
   {
     "target": "pipecat-examples/bot-ready-signalling/server",
@@ -140,7 +173,8 @@
     "tools": 0,
     "dynamic_variables": 0,
     "kb_files": 0,
-    "already_integrated": false
+    "already_integrated": false,
+    "integrate_probe": "exit 2 (MISSING_AGGREGATOR_PAIR)"
   },
   {
     "target": "pipecat-examples/code-helper/server",
@@ -151,7 +185,8 @@
     "tools": 0,
     "dynamic_variables": 0,
     "kb_files": 0,
-    "already_integrated": false
+    "already_integrated": false,
+    "integrate_probe": "exit 2 (PIPECAT_WORKER_API)"
   },
   {
     "target": "nvidia-voice-agent-examples",
@@ -162,7 +197,8 @@
     "tools": 0,
     "dynamic_variables": 0,
     "kb_files": 5,
-    "already_integrated": false
+    "already_integrated": false,
+    "integrate_probe": "exit 2 (NO_ENTRYPOINT)"
   },
   {
     "target": "nvidia-voice-agent-examples/examples/nat_agent",
@@ -173,7 +209,8 @@
     "tools": 0,
     "dynamic_variables": 0,
     "kb_files": 0,
-    "already_integrated": false
+    "already_integrated": false,
+    "integrate_probe": "exit 2 (AMBIGUOUS_ENTRYPOINT)"
   },
   {
     "target": "nvidia-voice-agent-examples/examples/voice_agent_webrtc",
@@ -184,7 +221,8 @@
     "tools": 0,
     "dynamic_variables": 0,
     "kb_files": 0,
-    "already_integrated": false
+    "already_integrated": false,
+    "integrate_probe": "exit 2 (MISSING_AGGREGATOR_PAIR)"
   },
   {
     "target": "nvidia-voice-agent-examples/examples/voice_agent_websocket",
@@ -195,7 +233,8 @@
     "tools": 0,
     "dynamic_variables": 0,
     "kb_files": 0,
-    "already_integrated": false
+    "already_integrated": false,
+    "integrate_probe": "exit 2 (MISSING_AGGREGATOR_PAIR)"
   },
   {
     "target": "telephony-server",
@@ -206,6 +245,7 @@
     "tools": 0,
     "dynamic_variables": 0,
     "kb_files": 0,
-    "already_integrated": false
+    "already_integrated": false,
+    "integrate_probe": "OFFLINE_E2E_PASS (checks 15 passed/0 failed, no-op re-apply=True, rollback=exact)"
   }
 ]

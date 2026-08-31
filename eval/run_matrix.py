@@ -26,6 +26,11 @@ REPOS = [
     "quickvoice", "aireceptionist", "outbound-caller-python",
     "pipecat-examples", "nvidia-voice-agent-examples", "telephony-server",
 ]
+# Named CEK-8066 top-pick subprojects that MUST appear in the matrix regardless of
+# what generic discovery finds ("pipecat-examples' Twilio phone bot").
+PINNED_SUBPATHS = {
+    "pipecat-examples": ["twilio-chatbot/inbound", "twilio-chatbot/outbound"],
+}
 FIXTURES = ROOT / "tests" / "fixtures"
 
 
@@ -74,17 +79,17 @@ def discover_subprojects(root: Path, limit: int = 5) -> list[Path]:
     return candidates
 
 
-def offline_e2e(fixture: str) -> dict:
-    src = FIXTURES / fixture
+def offline_e2e_on(src: Path, label: str) -> dict:
+    """Full offline pipeline on a throwaway copy: dry-run -> apply -> second apply -> rollback."""
     with tempfile.TemporaryDirectory() as tmp:
-        repo = Path(tmp) / fixture
+        repo = Path(tmp) / src.name
         shutil.copytree(src, repo)
         dry = integrate_repo(repo, mode=Mode.TEST, agent_id=42)
         applied = integrate_repo(repo, mode=Mode.TEST, apply=True, agent_id=42)
         second = integrate_repo(repo, mode=Mode.TEST, apply=True, agent_id=42)
         rollback_run(repo)
         return {
-            "target": f"fixture:{fixture}",
+            "target": label,
             "status": "OFFLINE_E2E_PASS" if (
                 dry.report.exit_code == 0 and applied.report.exit_code == 0
                 and second.report.exit_code == 0 and second.patchset.is_noop
@@ -98,14 +103,39 @@ def offline_e2e(fixture: str) -> dict:
         }
 
 
+def integrate_probe(path: Path, row: dict) -> None:
+    """Prove each real target was EXECUTED, not just classified.
+
+    SUPPORTED -> run the full offline E2E (apply/verify/no-op/rollback) on a copy.
+    NEEDS_HUMAN -> run integrate and record the structured refusal (exit 2 + codes).
+    """
+    try:
+        if row.get("status") == "SUPPORTED":
+            e2e = offline_e2e_on(path, row["target"])
+            row["integrate_probe"] = (
+                f"{e2e['status']} (checks {e2e['checks_passed']} passed/"
+                f"{e2e['checks_failed']} failed, no-op re-apply={e2e['idempotent_second_apply']}, "
+                f"rollback={e2e['rollback']})"
+            )
+        else:
+            result = integrate_repo(path, mode=Mode.TEST, agent_id=42)
+            row["integrate_probe"] = (
+                f"exit {result.report.exit_code} "
+                f"({', '.join(result.report.needs_human) or 'refused'})"
+            )
+    except Exception as exc:  # noqa: BLE001 - honest reporting beats crashing the matrix
+        row["integrate_probe"] = f"EXECUTION_ERROR: {str(exc)[:140]}"
+
+
 def main() -> None:
     rows: list[dict] = []
 
     for fixture in ("livekit_basic", "pipecat_single", "pipecat_custom"):
-        rows.append(offline_e2e(fixture))
+        rows.append(offline_e2e_on(FIXTURES / fixture, f"fixture:{fixture}"))
     refusal = integrate_repo(FIXTURES / "readme_only", mode=Mode.TEST)
     rows.append({"target": "fixture:readme_only (refusal)", "status": "NEEDS_HUMAN",
-                 "reason": ",".join(refusal.report.needs_human), "exit_code": 2})
+                 "reason": ",".join(refusal.report.needs_human),
+                 "integrate_probe": f"exit {refusal.report.exit_code}"})
 
     repos_dir = ROOT / "eval" / "repos"
     for name in REPOS:
@@ -115,19 +145,26 @@ def main() -> None:
                          "reason": "not cloned locally (eval/clone_repos.sh)"})
             continue
         row = classify(path, name)
+        integrate_probe(path, row)
         rows.append(row)
+
+        subpaths = [path / sub for sub in PINNED_SUBPATHS.get(name, []) if (path / sub).exists()]
         if row.get("status") == "NEEDS_HUMAN" and row.get("reason") in {
             "AMBIGUOUS_ENTRYPOINT", "NO_ENTRYPOINT", "MULTI_FRAMEWORK", "NO_FRAMEWORK",
             "NO_PIPELINE_TASK",
         }:
-            for sub in discover_subprojects(path):
-                rows.append(classify(sub, f"{name}/{sub.relative_to(path)}"))
+            pinned_resolved = set(subpaths)
+            subpaths += [s for s in discover_subprojects(path) if s not in pinned_resolved]
+        for sub in subpaths:
+            sub_row = classify(sub, f"{name}/{sub.relative_to(path)}")
+            integrate_probe(sub, sub_row)
+            rows.append(sub_row)
 
     out_json = ROOT / "eval" / "matrix.json"
     out_json.write_text(json.dumps(rows, indent=2))
 
     cols = ["target", "status", "framework", "reason", "entrypoints", "tools",
-            "dynamic_variables", "kb_files"]
+            "dynamic_variables", "kb_files", "integrate_probe"]
     lines = ["# cekura-agent evaluation matrix", "",
              "| " + " | ".join(cols) + " |",
              "|" + "|".join(["---"] * len(cols)) + "|"]
