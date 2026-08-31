@@ -277,6 +277,7 @@ class CekuraDesiredState(StrictModel):
     mock_tools: list[MockToolSpec] = Field(default_factory=list)
     dynamic_variables: list[DynamicVariableSpec] = Field(default_factory=list)
     kb_uploads: list[KBManifestEntry] = Field(default_factory=list)
+    repo_root: str = ""  # for resolving approved KB file paths at upload time
     dashboard_url: str = ""
     notes: str = ""
 

@@ -151,12 +151,21 @@ def _scan_python_file(rel: str, source: str, tree: ast.Module, counter: _Counter
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             out.extend(_scan_function(rel, node, lines, add, worker_entry_names))
 
-    # ---- module-level string constants: placeholders
+    # ---- module-level string constants: placeholders + system prompt capture
+    best_prompt: tuple[int, ast.Constant] | None = None
     for node in ast.walk(tree):
-        if isinstance(node, ast.Constant) and isinstance(node.value, str) and "{{" in node.value:
-            for var in dict.fromkeys(PLACEHOLDER_RE.findall(node.value)):
-                add(EvidenceKind.PROMPT_PLACEHOLDER, node, symbol=var,
-                    detail={"variable": var, "context": node.value[:200]})
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if "{{" in node.value:
+                for var in dict.fromkeys(PLACEHOLDER_RE.findall(node.value)):
+                    add(EvidenceKind.PROMPT_PLACEHOLDER, node, symbol=var,
+                        detail={"variable": var, "context": node.value[:200]})
+            text = node.value.strip()
+            looks_like_prompt = len(text) > 60 and ("{{" in text or text.lower().startswith("you are"))
+            if looks_like_prompt and (best_prompt is None or len(text) > best_prompt[0]):
+                best_prompt = (len(text), node)
+    if best_prompt is not None:
+        add(EvidenceKind.OTHER, best_prompt[1], symbol="system_prompt",
+            detail={"style": "system_prompt", "text": best_prompt[1].value[:4000]})
 
     # ---- FunctionSchema(...) tool definitions (module or function scope)
     for node in ast.walk(tree):
