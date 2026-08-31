@@ -1,0 +1,170 @@
+"""Mock tools: discovery -> synthetic variants -> Cekura desired-state objects + routing boundary.
+
+- Tool names/schemas come verbatim from evidence (exact match matters: any casing or
+  underscore mismatch on the platform silently never matches at runtime).
+- Mock data is CLEARLY synthetic ("MOCK-..." values, 555 phone numbers) so it can never
+  be mistaken for production data and never reaches a live backend.
+- LiveKit test mode: `track_session` auto-injects platform mocks — no routing code needed.
+- Pipecat: the SDK does NOT auto-inject. Routing requires an explicit endpoint contract;
+  anything else is NEEDS_HUMAN, never a silent fall-through to the real tool.
+"""
+
+from __future__ import annotations
+
+import os
+from typing import Any, Protocol
+
+import httpx
+
+from ..errors import NeedsHuman
+from ..models import EvidenceKind, MockDataVariant, MockToolSpec
+from ..scanner import InspectionResult
+
+FREETEXT_NAMES = {"notes", "reason", "comment", "comments", "message", "description", "details"}
+
+_TYPE_DEFAULTS: dict[str, Any] = {
+    "str": "MOCK-VALUE", "string": "MOCK-VALUE",
+    "int": 1, "integer": 1, "float": 1.0, "number": 1.0,
+    "bool": True, "boolean": True, "any": "MOCK-VALUE",
+}
+
+
+def synthetic_value(name: str, type_name: str) -> Any:
+    lowered = name.lower()
+    if "phone" in lowered:
+        return "+15550100001"  # 555 fictional range
+    if "date" in lowered:
+        return "2026-01-15"
+    if "time" in lowered:
+        return "10:00"
+    if "email" in lowered:
+        return "mock.caller@example.com"
+    if "name" in lowered:
+        return "Mock Caller"
+    if "zip" in lowered or "postal" in lowered:
+        return "00000"
+    if lowered.endswith("_id") or lowered == "id" or "account" in lowered:
+        return "MOCK-ID-0001"
+    if "amount" in lowered or "price" in lowered:
+        return 10.0
+    return _TYPE_DEFAULTS.get(type_name.lower(), "MOCK-VALUE")
+
+
+def _params_of(detail: dict[str, Any]) -> dict[str, str]:
+    params = detail.get("parameters") or {}
+    normalized: dict[str, str] = {}
+    for key, value in params.items():
+        if isinstance(value, dict):  # JSON-schema property {"type": "string", ...}
+            normalized[key] = str(value.get("type", "any"))
+        else:
+            normalized[key] = str(value)
+    return normalized
+
+
+def build_mock_tool_specs(inspection: InspectionResult) -> list[MockToolSpec]:
+    by_name: dict[str, MockToolSpec] = {}
+    for ev in inspection.evidence_map.of_kind(EvidenceKind.TOOL_DEF):
+        name = str(ev.detail.get("name") or ev.symbol)
+        params = _params_of(ev.detail)
+        existing = by_name.get(name)
+        if existing is not None and not params:
+            existing.evidence_ids.append(ev.id)
+            continue  # keep the richer (schema-bearing) definition
+
+        success_input = {p: synthetic_value(p, t) for p, t in params.items()}
+        success_output = {"status": "ok", "result": f"MOCK result for {name}", "mock": True}
+        error_output = {"status": "error", "error": f"MOCK simulated failure of {name}", "mock": True}
+        empty_output = {"status": "ok", "result": None, "mock": True,
+                        "message": "MOCK empty result (no records found)"}
+        variants = [
+            MockDataVariant(variant="success", input=success_input, output=success_output),
+            MockDataVariant(variant="empty", input=success_input, output=empty_output),
+            MockDataVariant(variant="error", input=success_input, output=error_output),
+        ]
+        spec = MockToolSpec(
+            name=name,
+            description=str(ev.detail.get("description") or f"Mock for tool {name}"),
+            parameters_schema={p: {"type": t} for p, t in params.items()},
+            mock_data=variants,
+            freetext_params=sorted(p for p in params if p.lower() in FREETEXT_NAMES),
+            evidence_ids=[ev.id] + (existing.evidence_ids if existing else []),
+        )
+        by_name[name] = spec
+    return [by_name[k] for k in sorted(by_name)]
+
+
+def verify_mock_names(specs: list[MockToolSpec], inspection: InspectionResult) -> list[str]:
+    """Exact-name cross-check; returns mismatches (must be empty)."""
+    discovered = {
+        str(e.detail.get("name") or e.symbol)
+        for e in inspection.evidence_map.of_kind(EvidenceKind.TOOL_DEF)
+    }
+    return sorted({s.name for s in specs} ^ discovered)
+
+
+# ------------------------------------------------------------------ routing boundary
+
+
+class MockToolRouter(Protocol):
+    """What a repo-side adapter must implement to route tool calls to mocks during tests."""
+
+    def invoke(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]: ...
+
+
+class CekuraMockToolRouter:
+    """Routes to Cekura's documented runtime mock endpoint.
+
+    POST {base}/test_framework/v1/mock-tools/{tool_name}/invoke/
+    Only constructed via `resolve_pipecat_router` — never used implicitly.
+    """
+
+    def __init__(self, base_url: str, api_key: str | None = None, timeout: float = 10.0) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.timeout = timeout
+
+    def invoke(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        headers = {"X-CEKURA-API-KEY": self.api_key} if self.api_key else {}
+        resp = httpx.post(
+            f"{self.base_url}/test_framework/v1/mock-tools/{tool_name}/invoke/",
+            json=arguments, headers=headers, timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+class LocalFakeMockToolRouter:
+    """Test double: serves the spec's own variants; never touches the network."""
+
+    def __init__(self, specs: list[MockToolSpec]) -> None:
+        self._by_name = {s.name: s for s in specs}
+
+    def invoke(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        spec = self._by_name.get(tool_name)
+        if spec is None:
+            raise KeyError(f"no mock configured for tool {tool_name!r} (exact-name match required)")
+        del arguments
+        return dict(spec.mock_data[0].output)
+
+
+def resolve_pipecat_router(specs: list[MockToolSpec],
+                           env: dict[str, str] | None = None) -> MockToolRouter | None:
+    """Explicit-activation policy for Pipecat mock routing.
+
+    Returns None when mocking is not requested. Raises NeedsHuman when requested but
+    the endpoint contract is not explicitly configured — it NEVER falls back to a
+    real backend.
+    """
+    env = dict(os.environ) if env is None else env
+    if env.get("CEKURA_USE_MOCK_TOOLS") != "1":
+        return None
+    endpoint = env.get("CEKURA_MOCK_ENDPOINT_BASE")
+    if not endpoint or not endpoint.startswith(("http://", "https://")):
+        raise NeedsHuman(
+            "PIPECAT_MOCK_ROUTING_UNCONFIGURED",
+            "Pipecat mock routing requested (CEKURA_USE_MOCK_TOOLS=1) but no explicit "
+            "CEKURA_MOCK_ENDPOINT_BASE contract is configured; refusing to guess "
+            "(tool calls will NOT be silently sent anywhere)",
+        )
+    del specs
+    return CekuraMockToolRouter(endpoint, api_key=env.get("CEKURA_API_KEY"))

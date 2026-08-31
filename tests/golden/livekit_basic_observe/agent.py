@@ -1,8 +1,6 @@
 import json
 import logging
-import os
 
-from cekura.livekit import LiveKitTracer
 from dotenv import load_dotenv
 from livekit.agents import (
     Agent,
@@ -14,6 +12,8 @@ from livekit.agents import (
     function_tool,
 )
 from livekit.plugins import deepgram, openai, silero
+import os
+from cekura.livekit import LiveKitTracer
 
 # Cekura tracing (added by cekura-agent)
 cekura_tracer = LiveKitTracer(

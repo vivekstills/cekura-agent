@@ -49,6 +49,14 @@ def make_plan(
     ledger = BudgetLedger(settings)
     plan = build_plan(inspection, mode, model_mode=model_mode, agent_id=agent_id,
                       settings=settings, ledger=ledger)
+    # Feature specs are host-computed from evidence (deterministic), never model-invented.
+    from .features import build_dynamic_variable_specs, build_kb_manifest, build_mock_tool_specs
+
+    plan = plan.model_copy(update={
+        "mock_tools": build_mock_tool_specs(inspection),
+        "dynamic_variables": build_dynamic_variable_specs(inspection),
+        "kb_manifest": build_kb_manifest(inspection),
+    })
     return plan, PlanContext(inspection=inspection, settings=settings, ledger=ledger)
 
 

@@ -1,6 +1,5 @@
 import os
 
-from cekura.pipecat import PipecatTracer
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
@@ -13,6 +12,7 @@ from pipecat.processors.aggregators.llm_response_universal import (
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
 from pipecat.services.openai.llm import OpenAILLMService
+from cekura.pipecat import PipecatTracer
 
 PROMPT = "You are a survey caller. Confirm the respondent's zip code {{zip_code}} before starting."
 
