@@ -273,7 +273,14 @@ def reconcile(client: CekuraClient, desired: CekuraDesiredState, *, apply: bool,
     if apply and to_upload:
         if kb_files_root is None:
             raise NeedsHuman("KB_ROOT_MISSING", "KB uploads require the repo root for file content")
-        files = [(Path(k.path).name, (kb_files_root / k.path).read_bytes()) for k in to_upload]
+        from ..safety import ensure_within_root
+
+        files: list[tuple[str, bytes]] = []
+        for k in to_upload:
+            resolved = ensure_within_root(kb_files_root, Path(k.path))
+            if resolved.stat().st_size > 2_000_000:
+                raise NeedsHuman("KB_FILE_TOO_LARGE", f"{k.path} exceeds 2 MB upload limit")
+            files.append((resolved.name, resolved.read_bytes()))
         client.upload_knowledge_base(agent_id, files)
 
     # ---- GET-after exact verification (values, not counts)

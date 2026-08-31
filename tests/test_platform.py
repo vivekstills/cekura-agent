@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from cekura_agent.errors import AgentError, BlockedByAccess, NeedsHuman, PlatformContractError
+from cekura_agent.errors import (
+    AgentError,
+    BlockedByAccess,
+    NeedsHuman,
+    PlatformContractError,
+    SafetyViolation,
+)
 from cekura_agent.models import Mode
 from cekura_agent.orchestrator import prepare_platform_state
 from cekura_agent.platform import CekuraClient, FakeCekuraServer, reconcile
@@ -67,6 +73,26 @@ def test_kb_uploads_only_when_approved(fake_cekura):
     agent = fake_cekura.agents[result["agent"]["id"]]
     assert [f["name"] for f in agent["knowledge_base_files"]] == ["faq.md"]
     assert result["verified"] is True
+
+
+def test_kb_upload_rejects_path_traversal(fake_cekura, tmp_path):
+    desired = _desired()
+    desired.kb_uploads[0].approved = True
+    desired.kb_uploads[0].path = "../secret.txt"
+    with pytest.raises(SafetyViolation):
+        reconcile(_client(fake_cekura), desired, apply=True, kb_files_root=FIXTURES / "livekit_basic")
+
+
+def test_kb_upload_rejects_oversized_file(fake_cekura, tmp_path):
+    big = tmp_path / "big.md"
+    big.write_bytes(b"x" * 2_000_001)
+    desired = _desired()
+    desired.kb_uploads[0].approved = True
+    desired.kb_uploads[0].path = str(big)
+    desired.repo_root = str(tmp_path)
+    with pytest.raises(NeedsHuman) as exc:
+        reconcile(_client(fake_cekura), desired, apply=True, kb_files_root=tmp_path)
+    assert exc.value.reason_code == "KB_FILE_TOO_LARGE"
 
 
 # ------------------------------------------------------------------ deletion safety
