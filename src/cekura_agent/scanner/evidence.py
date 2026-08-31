@@ -241,6 +241,8 @@ def _scan_function(rel: str, fn: ast.FunctionDef | ast.AsyncFunctionDef, lines: 
     pipeline_vars: dict[str, list[str]] = {}
     metadata_vars: set[str] = set()
     aggregator_seen = False
+    aggregator_pair_names: list[list[str]] = []  # [user_var, assistant_var] per pair assignment
+    aggregator_factory_vars: set[str] = set()  # create_context_aggregator(...) result vars
 
     for node in ast.walk(fn):
         # session = AgentSession(...)
@@ -273,6 +275,12 @@ def _scan_function(rel: str, fn: ast.FunctionDef | ast.AsyncFunctionDef, lines: 
                     })
             if callee == "LLMContextAggregatorPair" or callee == "create_context_aggregator":
                 aggregator_seen = True
+                if callee == "LLMContextAggregatorPair" and isinstance(target, ast.Tuple):
+                    names = [e.id for e in target.elts if isinstance(e, ast.Name)]
+                    if len(names) == 2:
+                        aggregator_pair_names.append(names)
+                elif callee == "create_context_aggregator" and target_name:
+                    aggregator_factory_vars.add(target_name)
                 add(EvidenceKind.AGGREGATOR, node, symbol=callee,
                     detail={"style": callee, "function": fn.name,
                             "targets": [_unparse(t) for t in node.targets]})
@@ -353,11 +361,24 @@ def _scan_function(rel: str, fn: ast.FunctionDef | ast.AsyncFunctionDef, lines: 
     if "pipeline_task" in body_evidence:
         task_detail = body_evidence["pipeline_task"].detail
         pipeline_elements = pipeline_vars.get(task_detail.get("pipeline_arg") or "", [])
+
+        def _pair_in_pipeline() -> bool:
+            if not pipeline_elements:
+                return aggregator_seen  # pipeline built elsewhere; fall back to construction evidence
+            elems = set(pipeline_elements)
+            for pair in aggregator_pair_names:
+                if set(pair) <= elems:
+                    return True
+            for var in aggregator_factory_vars:
+                if f"{var}.user()" in elems and f"{var}.assistant()" in elems:
+                    return True
+            return False
+
         add(EvidenceKind.ENTRYPOINT, fn, symbol=fn.name, detail={
             "framework": "pipecat", "function": fn.name, "params": params,
             "is_async": isinstance(fn, ast.AsyncFunctionDef),
             "pipeline_elements": pipeline_elements,
-            "has_aggregator_pair": aggregator_seen,
+            "has_aggregator_pair": _pair_in_pipeline(),
             "context_var": (body_evidence.get("context").detail.get("context_var")
                             if body_evidence.get("context") else None),
         })

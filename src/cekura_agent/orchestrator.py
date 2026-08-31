@@ -61,7 +61,10 @@ def is_already_integrated(inspection: InspectionResult) -> bool:
 
 def render_patchset(repo: Path, *, mode: Mode, model_mode: str = "fake",
                     agent_id: int | None = None) -> PatchSet:
-    raise AgentError("adapters not wired yet (slice C)")
+    from .patching import render_patchset as _render
+
+    plan, ctx = make_plan(repo, mode, model_mode=model_mode, agent_id=agent_id)
+    return _render(plan, ctx.inspection)
 
 
 def integrate_repo(*args, **kwargs):
