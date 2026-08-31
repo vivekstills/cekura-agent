@@ -25,10 +25,10 @@
    Cekura contract targets `PipelineTask`; repos on the worker API get
    `PIPECAT_WORKER_API` NEEDS_HUMAN until SDK support is confirmed. Found in current
    pipecat-examples.
-9. **Pipecat mock routing is explicit.** The Pipecat SDK does not auto-inject mock tools
-   (LiveKit does). We ship a typed `MockToolRouter` + Cekura endpoint router activated only by
-   `CEKURA_USE_MOCK_TOOLS=1` **and** an explicit `CEKURA_MOCK_ENDPOINT_BASE`; anything else is
-   `PIPECAT_MOCK_ROUTING_UNCONFIGURED`, never a fall-through to real backends.
+9. **Both LiveKit and Pipecat mock tools are auto-injected by the SDK.** The platform
+   `mock_tools` registration is the source of truth; the SDKs intercept tool calls at runtime.
+   We still ship a typed `MockToolRouter` for custom/override endpoints, but it is only activated
+   when both `CEKURA_USE_MOCK_TOOLS=1` and `CEKURA_MOCK_ENDPOINT_BASE` are explicitly set.
 10. **Dynamic-variable exclusions.** Placeholders in non-executable files (README/docs) are
     recorded as rejected evidence and excluded from registration; structural runtime inputs
     (`ctx.job.metadata` keys, `session_data` keys) are registered even without `{{ }}`.

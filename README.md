@@ -27,7 +27,7 @@ real-repo patch of `livekit-examples/outbound-caller-python` (tracer inserted be
 | LiveKit adapter (test/observe) | `adapters/livekit.py` | golden fixtures + lifecycle verifier |
 | Pipecat adapter (test/observe) | `adapters/pipecat.py` | golden fixtures + lifecycle verifier |
 | Monitoring (tracing lifecycle) | `features/monitoring.py`, `verification/lifecycle.py` | exactly-once checks |
-| Mock tools | `features/mock_tools.py` | desired-state objects + LiveKit auto-injection / Pipecat router |
+| Mock tools | `features/mock_tools.py` | desired-state objects; SDK auto-injects for LiveKit and Pipecat (explicit router optional) |
 | Dynamic variables | `features/dynamic_vars.py` | typed source->sink mapping |
 | Knowledge base | `features/knowledge_base.py` | reviewed upload manifest |
 | Cekura dashboard | `platform/` (`prepare-platform`, `apply-platform`) | GET-after exact verification |

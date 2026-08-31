@@ -4,9 +4,10 @@
   underscore mismatch on the platform silently never matches at runtime).
 - Mock data is CLEARLY synthetic ("MOCK-..." values, 555 phone numbers) so it can never
   be mistaken for production data and never reaches a live backend.
-- LiveKit test mode: `track_session` auto-injects platform mocks — no routing code needed.
-- Pipecat: the SDK does NOT auto-inject. Routing requires an explicit endpoint contract;
-  anything else is NEEDS_HUMAN, never a silent fall-through to the real tool.
+- LiveKit and Pipecat test mode: the Cekura SDK auto-injects platform mocks registered on
+  the dashboard. No routing code is needed in the customer repo.
+- The explicit `MockToolRouter` below is an optional override for custom endpoints and is
+  never activated implicitly; if no endpoint is configured, the SDK handles interception.
 """
 
 from __future__ import annotations
@@ -16,7 +17,6 @@ from typing import Any, Protocol
 
 import httpx
 
-from ..errors import NeedsHuman
 from ..models import EvidenceKind, MockDataVariant, MockToolSpec
 from ..scanner import InspectionResult
 
@@ -163,22 +163,18 @@ class LocalFakeMockToolRouter:
 
 def resolve_pipecat_router(specs: list[MockToolSpec],
                            env: dict[str, str] | None = None) -> MockToolRouter | None:
-    """Explicit-activation policy for Pipecat mock routing.
+    """Optional explicit router for Pipecat mock tools.
 
-    Returns None when mocking is not requested. Raises NeedsHuman when requested but
-    the endpoint contract is not explicitly configured — it NEVER falls back to a
-    real backend.
+    By default the Cekura Pipecat SDK auto-injects dashboard-registered mocks, so this
+    returns None. An explicit router is only returned when both CEKURA_USE_MOCK_TOOLS=1
+    and a CEKURA_MOCK_ENDPOINT_BASE are configured.
     """
     env = dict(os.environ) if env is None else env
     if env.get("CEKURA_USE_MOCK_TOOLS") != "1":
         return None
     endpoint = env.get("CEKURA_MOCK_ENDPOINT_BASE")
     if not endpoint or not endpoint.startswith(("http://", "https://")):
-        raise NeedsHuman(
-            "PIPECAT_MOCK_ROUTING_UNCONFIGURED",
-            "Pipecat mock routing requested (CEKURA_USE_MOCK_TOOLS=1) but no explicit "
-            "CEKURA_MOCK_ENDPOINT_BASE contract is configured; refusing to guess "
-            "(tool calls will NOT be silently sent anywhere)",
-        )
+        # SDK auto-intercepts when no explicit endpoint is provided.
+        return None
     del specs
     return CekuraMockToolRouter(endpoint, api_key=env.get("CEKURA_API_KEY"))

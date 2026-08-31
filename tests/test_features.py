@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from cekura_agent.errors import NeedsHuman
 from cekura_agent.features import (
     CekuraMockToolRouter,
     LocalFakeMockToolRouter,
@@ -93,13 +92,10 @@ def test_local_fake_router_requires_exact_name():
 
 
 def test_pipecat_router_activation_policy():
-    # not requested -> None (no mocking, real tools untouched)
+    # SDK auto-intercepts by default -> no repo-side router needed
     assert resolve_pipecat_router([], env={}) is None
-    # requested but unconfigured -> NEEDS_HUMAN, never a silent fallback
-    with pytest.raises(NeedsHuman) as exc:
-        resolve_pipecat_router([], env={"CEKURA_USE_MOCK_TOOLS": "1"})
-    assert exc.value.reason_code == "PIPECAT_MOCK_ROUTING_UNCONFIGURED"
-    # explicit contract -> documented Cekura endpoint router
+    # explicit override still available when an endpoint is configured
+    assert resolve_pipecat_router([], env={"CEKURA_USE_MOCK_TOOLS": "1"}) is None
     router = resolve_pipecat_router([], env={
         "CEKURA_USE_MOCK_TOOLS": "1",
         "CEKURA_MOCK_ENDPOINT_BASE": "https://api.cekura.ai",

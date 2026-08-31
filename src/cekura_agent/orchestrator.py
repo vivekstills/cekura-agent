@@ -14,7 +14,6 @@ from .errors import AgentError, NeedsHuman
 from .models import (
     CapabilityStatus,
     EvidenceKind,
-    Framework,
     IntegrationPlan,
     Mode,
     PatchSet,
@@ -223,10 +222,6 @@ def integrate_repo(
     add_check(report, "features:dynamic_variables", True, f"{len(plan.dynamic_variables)} variable(s)")
     add_check(report, "features:kb_manifest", True,
               f"{len(plan.kb_manifest)} document(s), approval required before upload")
-    if plan.framework == Framework.PIPECAT and plan.mock_tools:
-        add_check(report, "features:pipecat_mock_routing", True, severity="warning",
-                  detail="Pipecat SDK does not auto-inject mocks; routing needs the explicit "
-                         "MockToolRouter contract (see report notes)")
 
     # ---- platform
     desired = prepare_platform_state(repo, mode=mode, agent_id=agent_id, project_id=project_id)

@@ -13,7 +13,7 @@ def summarize_monitoring(inspection: InspectionResult, mode: Mode) -> dict:
         (Framework.LIVEKIT, Mode.TEST): "track_session (mock tools auto-injected; chat mode auto)",
         (Framework.LIVEKIT, Mode.OBSERVE): "observe_session (dual-channel audio via LiveKit egress; "
                                            "requires LiveKit creds on the Cekura agent)",
-        (Framework.PIPECAT, Mode.TEST): "track_and_create_task / track_pipeline (no audio)",
+        (Framework.PIPECAT, Mode.TEST): "track_and_create_task / track_pipeline (mock tools auto-injected)",
         (Framework.PIPECAT, Mode.OBSERVE): "observe_and_create_task / observe_pipeline "
                                            "(dual-channel audio)",
     }.get((framework, mode), "n/a")

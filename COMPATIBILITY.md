@@ -26,7 +26,6 @@
 | `PROVIDER_CONNECTION_REQUIRED` | platform requires provider creds (e.g. `LIVEKIT_URL`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`) or a connection method to create the agent |
 | `PROJECT_REQUIRED` | multiple projects visible; pass `--project-id` |
 | `OPENROUTER_KEY_MISSING` / `OPENROUTER_UNAUTHORIZED` | live planning needs `OPENROUTER_API_KEY` |
-| `PIPECAT_MOCK_ROUTING_UNCONFIGURED` | pipecat mock routing requested without an explicit endpoint contract |
 
 ## CEK-8066 top picks — existence, execution, test outcome (2026-08-31; full table in eval/matrix.md)
 | Top pick | Executed | Outcome |
