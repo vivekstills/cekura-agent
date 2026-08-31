@@ -59,7 +59,7 @@ Kimi K3 is responsible for choosing from the constrained action set and for synt
 From a fresh clone:
 
 ```bash
-cd cekura-agent
+cd cekura-agent   # use the actual directory name you cloned into
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
@@ -381,6 +381,7 @@ See `SECURITY.md` and `security/SECURITY_TEST_MATRIX.md` for the full test matri
 - `SECURITY.md` — secrets, boundaries, budget, and rollback.
 - `COMPATIBILITY.md` — supported topologies and all stable reason / blocker codes.
 - `EVALUATION.md` — test suite, live results, and top-pick outcomes.
+- `SUBMISSION_CHECKLIST.md` — exact release commands and what to check before handing off.
 
 ## Honest remaining limitations and next steps
 
